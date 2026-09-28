@@ -517,8 +517,12 @@
      Le premier plan, et la comptine
      ====================================================================== */
   function create(salon, bulle) {
-    const svg = salon.svg;
-    const defs = svg.querySelector('defs') || S('defs', {}, svg);
+    // le premier plan a son propre <svg>, posé sur le salon, au même cadrage : quand Mallo bouge, seul ce
+    // calque se redessine (le salon, immobile, n'est pas repeint à chaque image)
+    const fond = salon.svg;
+    const svg = S('svg', { viewBox: fond.getAttribute('viewBox'), preserveAspectRatio: fond.getAttribute('preserveAspectRatio') || 'xMidYMid meet', class: 'co-calque', 'aria-hidden': 'true' });
+    fond.parentNode.insertBefore(svg, fond.nextSibling);
+    const defs = S('defs', {}, svg);
     const entre = G(svg, { class: 'co-premier-plan' }); // l'entrée (animée) ; dedans, le premier plan agrandi
     const root = G(entre, { transform: PLAN });
     const L = {
@@ -561,7 +565,9 @@
       // cadre très haut : plutôt que de montrer le dessus de la voûte, on rogne un peu les côtés
       if (y0 < -70) { u = bord / (ANCRE + 70); y0 = -70; }
       const w = W / u;
-      svg.setAttribute('viewBox', `${f(200 - w / 2)} ${f(y0)} ${f(w)} ${f(H / u)}`);
+      const vb = `${f(200 - w / 2)} ${f(y0)} ${f(w)} ${f(H / u)}`;
+      fond.setAttribute('viewBox', vb);
+      svg.setAttribute('viewBox', vb);
     }
     cadrer();
     if (window.ResizeObserver) {

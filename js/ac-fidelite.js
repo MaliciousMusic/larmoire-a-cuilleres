@@ -1,7 +1,7 @@
 /* ==========================================================================
    L'Armoire à Cuillères — la carte fidélité : un râtelier à cuillères
    Une petite armoire à cuillères en bois (le « cuillerier » de grand-mère) :
-   à chaque passage, l'équipe y accroche une cuillère, avec son code à 4 chiffres,
+   à chaque passage, l'équipe y accroche une cuillère, avec son code à 6 chiffres,
    sur le téléphone du client (même système que Café Laitue et Kookies).
    Dix cuillères = un chocolat grand cru offert. Les dix cuillères sont celles de
    leur dessin (l'enseigne drapeau), vectorisées dans ac-brand.js.
@@ -15,10 +15,11 @@
   const GOAL = (AC.FIDELITE && AC.FIDELITE.objectif) || 10;
   const LOYALTY = {
     maxPerVisit: 5,
-    // Code équipe (4 chiffres) : seule l'empreinte SHA-256 de `${salt}:${code}` est publiée.
-    // Pour le changer : node tools/set-pin.mjs 1234
+    // Code équipe (6 chiffres) : seule l'empreinte SHA-256 de `${salt}:${code}` est publiée.
+    // Pour le changer : node tools/set-pin.mjs 123456
+    chiffres: 6,
     salt: 'armoire-a-cuilleres',
-    pinHash: 'db9ca0ae12c015182fe38ec29f4518a0588f6f0c4391de60d2b8db1bd1d44a30',
+    pinHash: '6a62898998823bfe8f65928f150eb53507b7effa1a2e946567b9ea84a70a9651',
   };
 
   let card = load();
@@ -81,32 +82,28 @@
     AC.svg('path', { d: 'M38 104H422V352H38Z', fill: 'url(#rk-fond)' }, svg);
     for (let k = 0; k < 9; k++) AC.svg('path', { d: `M${60 + k * 42} 104V352`, stroke: '#000', 'stroke-width': 0.6, opacity: 0.25 }, svg); // planches du fond
     AC.svg('path', { d: 'M22 96C22 60 60 58 90 56C140 52 170 30 230 30S320 52 370 56C400 58 438 60 438 96', fill: 'none', stroke: '#6B4E44', 'stroke-width': 2 }, svg);
-    AC.svg('path', { d: 'M196 58c10 -12 24 -16 34 -16s24 4 34 16c-10 -4 -22 -6 -34 -6s-24 2 -34 6z', fill: '#6B4E44' }, svg); // petite coquille sculptée
-    AC.svg('circle', { cx: 230, cy: 70, r: 4, fill: '#6B4E44' }, svg);
+    AC.svg('path', { d: 'M200 51c9 -11 21 -14 30 -14s21 3 30 14c-9 -3.6 -19 -5.4 -30 -5.4s-21 1.8 -30 5.4z', fill: '#6B4E44' }, svg); // petite coquille sculptée
+    // la plaque au prénom, en laiton, vissée sur le fronton
+    const pl = AC.svg('g', { class: 'rk-plaque' }, svg);
+    AC.svg('rect', { x: 151, y: 57.5, width: 160, height: 28, rx: 6, fill: '#000', opacity: 0.35 }, pl); // son ombre sur le bois
+    AC.svg('rect', { x: 150, y: 56, width: 160, height: 28, rx: 6, fill: 'url(#rk-laiton)', stroke: '#6B5023', 'stroke-width': 1 }, pl);
+    AC.svg('circle', { cx: 160, cy: 70, r: 2, fill: '#6B5023' }, pl);
+    AC.svg('circle', { cx: 300, cy: 70, r: 2, fill: '#6B5023' }, pl);
+    const nom = AC.svg('text', { x: 230, y: 76.5, 'text-anchor': 'middle', 'font-family': "'Armoire Lettres', Poppins, sans-serif", 'font-size': 18, fill: '#3B2723' }, pl);
+    nom.textContent = card ? card.name.toUpperCase() : '';
     // la tringle et les crochets de laiton
     AC.svg('rect', { x: 38, y: 116, width: 384, height: 10, rx: 3, fill: '#5A4038' }, svg);
     AC.svg('rect', { x: 38, y: 116, width: 384, height: 2.4, fill: '#7C5E52' }, svg);
     HOOKS.forEach(([x, y]) => AC.svg('path', { d: `M${x} ${y - 4}v5a4 4 0 0 0 8 0`, fill: 'none', stroke: 'url(#rk-laiton)', 'stroke-width': 2.4, 'stroke-linecap': 'round', transform: `translate(-4 0)` }, svg));
-    // la tablette du bas + la plaque au prénom
+    // la tablette du bas
     AC.svg('rect', { x: 26, y: 352, width: 408, height: 18, rx: 3, fill: '#4A332D' }, svg);
     AC.svg('rect', { x: 26, y: 352, width: 408, height: 3, fill: '#7C5E52' }, svg);
     AC.svg('rect', { x: 22, y: 370, width: 416, height: 16, fill: '#2A1B18' }, svg);
-    const pl = AC.svg('g', { class: 'rk-plaque' }, svg);
-    AC.svg('rect', { x: 150, y: 318, width: 160, height: 30, rx: 6, fill: 'url(#rk-laiton)', stroke: '#6B5023', 'stroke-width': 1 }, pl);
-    AC.svg('circle', { cx: 160, cy: 333, r: 2, fill: '#6B5023' }, pl);
-    AC.svg('circle', { cx: 300, cy: 333, r: 2, fill: '#6B5023' }, pl);
-    const nom = AC.svg('text', { x: 230, y: 340, 'text-anchor': 'middle', 'font-family': "'Armoire Lettres', Poppins, sans-serif", 'font-size': 19, fill: '#3B2723' }, pl);
-    nom.textContent = card ? card.name.toUpperCase() : '';
     // les cuillères
     const spoonsG = AC.svg('g', { class: 'rk-spoons' }, svg);
     const shown = card ? Math.min(card.stamps, GOAL) : 0;
     const els = [];
     for (let i = 0; i < GOAL; i++) els.push(spoonSVG(spoonsG, i, { vide: i >= shown }));
-    // la dixième : le cadeau
-    const cad = AC.svg('g', { class: 'rk-cadeau', transform: `translate(${HOOKS[GOAL - 1][0]} 312)` }, svg);
-    AC.svg('circle', { r: 15, fill: shown >= GOAL ? '#E64AA8' : 'rgba(243,235,221,.14)' }, cad);
-    const tx = AC.svg('text', { y: 4.5, 'text-anchor': 'middle', 'font-size': 13, fill: shown >= GOAL ? '#fff' : 'rgba(243,235,221,.55)', 'font-family': "'Armoire Lettres', Poppins, sans-serif" }, cad);
-    tx.textContent = '♥';
     // le compteur, gravé sur la tringle
     const cpt = AC.svg('text', { x: 230, y: 100, 'text-anchor': 'middle', 'font-family': 'Poppins, sans-serif', 'font-weight': 600, 'font-size': 12, fill: '#E9DCC9', 'letter-spacing': 1.2 }, svg);
     cpt.textContent = shown >= GOAL ? 'VOTRE CHOCOLAT EST OFFERT' : `${shown} / ${GOAL} CUILLÈRES`;
@@ -183,7 +180,12 @@
 
   function drawQR(el, text) {
     if (!el) return;
-    if (typeof window.qrcode !== 'function') { el.innerHTML = `<p class="rc-id">${esc(text)}</p>`; return; }
+    if (typeof window.qrcode !== 'function') {
+      el.innerHTML = `<p class="rc-id">${esc(text)}</p>`;
+      // le générateur (qrcode.js) se charge à la demande : on redessine dès qu'il est là
+      AC.charge('qrcode.js').then(() => { if (el.isConnected && typeof window.qrcode === 'function') drawQR(el, text); }).catch(() => {});
+      return;
+    }
     const qr = window.qrcode(0, 'M');
     qr.addData(text);
     qr.make();
@@ -211,7 +213,7 @@
       <h2 id="sp-titre">${titre}</h2>
       <p>${sous}</p>
       ${mode === 'tampon' ? `<div class="pin-qte"><div class="stepper"><button type="button" id="pq-m" aria-label="Une de moins" data-sfx="down">−</button><output id="pq">1</output><button type="button" id="pq-p" aria-label="Une de plus" data-sfx="up">+</button></div><span>cuillère(s)</span></div>` : ''}
-      <div class="pin-points" id="pin-points" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="pin-points" id="pin-points" aria-hidden="true">${'<i></i>'.repeat(LOYALTY.chiffres)}</div>
       <div class="pave" id="pave">${[1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'].map((k) => `<button type="button" class="${k === '' ? 'vide' : ''}" data-k="${k}" data-sfx="key" ${k === '⌫' ? 'aria-label="Effacer"' : ''}>${k}</button>`).join('')}</div>`;
     const pts = $('#pin-points');
     const maj = () => [...pts.children].forEach((p, i) => p.classList.toggle('on', i < code.length));
@@ -225,10 +227,10 @@
       if (!b || b.dataset.k === '') return;
       if (Date.now() < bloqueJusqua) { AC.toast('Trop d’essais : patientez une minute.'); return; }
       if (b.dataset.k === '⌫') { code = code.slice(0, -1); maj(); return; }
-      if (code.length >= 4) return;
+      if (code.length >= LOYALTY.chiffres) return;
       code += b.dataset.k;
       maj();
-      if (code.length < 4) return;
+      if (code.length < LOYALTY.chiffres) return;
       const ok = LOYALTY.pinHash && (await sha(`${LOYALTY.salt}:${code}`)) === LOYALTY.pinHash;
       if (!ok) {
         essais++;

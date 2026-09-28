@@ -114,6 +114,49 @@
         if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) AC.toast('Depuis votre téléphone : SMS au ' + AC.SHOP.tel, 4200);
       });
       maj();
+      initTablee();
     },
   };
+
+  /* ---------- la tablée du dimanche : dressée à la première visite de l'onglet ; la table et les
+     lignes de la formule et du buffet se répondent ---------- */
+  function initTablee() {
+    const hote = $('#tablee-scene');
+    if (!hote) return;
+    let tab = null;
+    const lignes = [...document.querySelectorAll('#formule [data-cle], #buffet [data-cle]')];
+    let allumeT = 0;
+    const allume = (cle) => {
+      clearTimeout(allumeT);
+      lignes.forEach((li) => li.classList.toggle('eclaire', li.dataset.cle === cle));
+      allumeT = setTimeout(() => lignes.forEach((li) => li.classList.remove('eclaire')), 2400);
+    };
+    let charge = null;
+    const reveil = () => {
+      // (ac-tablee.js, chargé à la première visite de l'onglet : il ne pèse pas sur l'ouverture de l'accueil)
+      if (tab || charge) return;
+      charge = AC.charge('ac-tablee.js').then(() => {
+        try { tab = AC.Tablee.create($('#tablee'), { etiquette: $('#tablee-etiquette'), scene: hote }); } catch (e) { console.warn('tablée', e); return; }
+        $('#tablee').addEventListener('tablee', (e) => allume(e.detail.cle));
+        tab.dresser();
+      }).catch((e) => console.warn('tablée', e));
+    };
+    // on touche une ligne : le plat se présente sur la table (on remonte la voir si elle n'est pas à l'écran)
+    lignes.forEach((li) => {
+      li.setAttribute('role', 'button');
+      li.tabIndex = 0;
+      const go = () => {
+        if (!tab) return;
+        const r = hote.getBoundingClientRect(), sc = hote.closest('.view-scroll');
+        const b = sc ? sc.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+        const voir = r.bottom < b.top + 80 || r.top > b.bottom - 80;
+        if (voir && AC.scrollTo) AC.scrollTo(hote, 24);
+        setTimeout(() => tab.montre(li.dataset.cle), voir ? 420 : 0);
+      };
+      li.addEventListener('click', go);
+      li.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
+    AC.on('view', (v) => { if (v === 'brunch') reveil(); });
+    if (AC.view === 'brunch') reveil();
+  }
 })();

@@ -47,12 +47,14 @@
     else route(false);
   };
 
+  let reposT = 0;
   function show(view, first) {
     if (view === current) return;
     const iNew = VIEWS.indexOf(view), iOld = VIEWS.indexOf(current);
     $$('.view').forEach((v) => {
       const i = VIEWS.indexOf(v.dataset.view);
       const on = v.dataset.view === view;
+      if (on) v.classList.remove('repos');
       if (on && !v.classList.contains('vue')) {
         v.classList.add('vue');
         v.classList.toggle('is-left', i < iOld);
@@ -70,6 +72,9 @@
     });
     current = view;
     AC.view = view;
+    // les onglets quittés, leur transition finie, ne se dessinent plus (ils gardent leur état et leur défilement)
+    clearTimeout(reposT);
+    reposT = setTimeout(() => $$('.view.vue:not(.is-active)').forEach((v) => v.classList.add('repos')), 450);
     AC.emit('view', view);
   }
 
@@ -160,6 +165,7 @@
     const now = AC.parisNow(), j = now.getDay();
     const plage = AC.HOURS.semaine[j];
     $('#cj-etat').textContent = st.ouvert ? 'Ouvert aujourd’hui' : plage ? 'Aujourd’hui' : 'Fermé aujourd’hui';
+    $('#carte-jour').classList.toggle('ouvert', !!st.ouvert);
     $('#cj-heures').textContent = plage ? AC.fmtH(plage[0]) + ' – ' + AC.fmtH(plage[1]) : st.texte.replace('Fermé · ', '');
     $$('#horaires-table tr').forEach((tr) => tr.classList.toggle('auj', +tr.dataset.j === j));
     if (facade) facade.setStatus(st);
@@ -168,6 +174,8 @@
   function initHours() {
     // « Les horaires » : on remonte à la devanture et on s'approche de la vitrine
     $('#carte-jour').addEventListener('click', async () => {
+      // l'enseigne se balance sur sa ficelle
+      if (!AC.reduced) $('#carte-jour').animate([{ transform: 'rotate(0)' }, { transform: 'rotate(2.6deg)' }, { transform: 'rotate(-1.8deg)' }, { transform: 'rotate(1deg)' }, { transform: 'rotate(0)' }], { duration: 1000, easing: 'ease-out' });
       const sc = $('#accueil .view-scroll');
       if (sc && sc.scrollTop > 2) {
         sc.scrollTo({ top: 0, behavior: AC.reduced ? 'auto' : 'smooth' });
@@ -275,7 +283,7 @@
   function initBureau() {
     if (!matchMedia('(min-width: 1000px)').matches) return;
     const q = $('#bureau-qr');
-    if (q && typeof window.qrcode === 'function') {
+    if (q) AC.charge('qrcode.js').then(() => {
       const qr = window.qrcode(0, 'M');
       qr.addData(location.href.split('#')[0].split('?')[0]);
       qr.make();
@@ -283,24 +291,94 @@
       let d = '';
       for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
       q.innerHTML = `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"><path d="${d}" fill="#3B2723"/></svg>`;
-    }
+    }).catch(() => {});
     if (AC.bouquet) {
       AC.bouquet($('#bureau-feuilles-g'), [['aqua', 70, 180, 150, -40], ['turquoise', 100, 180, 160, -8], ['prune', 130, 180, 170, 22], ['fuchsia', 150, 180, 140, 44], ['marine', 170, 180, 100, 70]], { w: 240, h: 180 });
       AC.bouquet($('#bureau-feuilles-d'), [['marine', 70, 0, 100, 150], ['prune', 100, 0, 160, 170], ['turquoise', 130, 0, 150, 196], ['aqua', 160, 0, 150, 220]], { w: 240, h: 180 });
     }
   }
 
+  /* ---------- sur ordinateur : la vitrine ----------
+     La page ne démarre pas l'appli : elle la montre dans un téléphone (elle-même, dans un cadre : tout s'y
+     passe comme sur un vrai, la largeur, la hauteur, le son, la fidélité), et la présente à côté.
+     Même requête média que le petit script de <head>, qui choisit le mode avant le premier affichage. */
+  const VITRINE = '(min-width: 900px) and (min-height: 600px) and (hover: hover) and (pointer: fine)';
+  function initVitrine() {
+    const v = $('#vitrine');
+    if (!v) return;
+    v.hidden = false;
+    // l'appli, dans le téléphone (les réglages de l'adresse suivent : ?soir, ?intro, ?ouvert…)
+    const u = new URL(location.href);
+    u.searchParams.set('cadre', '1');
+    $('#vt-app').src = u.pathname + u.search + (location.hash || '#accueil');
+    // le téléphone (et sa présentation) tiennent toujours dans la fenêtre ; un peu plus grands sur un grand écran
+    const cadrer = () => v.style.setProperty('--k', Math.min(1.12, (innerHeight - 40) / 868).toFixed(3));
+    cadrer();
+    addEventListener('resize', cadrer);
+    // l'heure de la barre d'état : celle de Paris
+    const heure = () => { const d = AC.parisNow(); $('#vt-heure').textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0'); };
+    heure();
+    setInterval(heure, 15000);
+    // leur logo, avec sa cuillère
+    if (AC.logoSVG) {
+      const { svg } = AC.logoSVG({ couleur: '#3B2723' });
+      svg.removeAttribute('role');
+      svg.removeAttribute('aria-label');
+      $('#vt-logo').appendChild(svg);
+    }
+    // leurs feuilles, dans deux coins de la page
+    if (AC.bouquet) {
+      AC.bouquet($('#vt-coin-hd'), [['aqua', 300, 4, 250, 226], ['turquoise', 306, -4, 232, 244], ['prune', 298, 10, 240, 212], ['marine', 304, 16, 170, 200], ['fuchsia', 310, 0, 226, 256], ['turquoise', 290, 6, 146, 270]], { w: 300, h: 300, par: 'xMaxYMin meet' });
+      AC.bouquet($('#vt-coin-bg'), [['aqua', 0, 296, 250, 46], ['turquoise', -6, 304, 232, 64], ['prune', 2, 290, 240, 32], ['marine', -4, 284, 170, 20], ['fuchsia', -10, 300, 226, 76], ['aqua', 14, 288, 128, 70]], { w: 300, h: 300, par: 'xMinYMax meet' });
+    }
+    // le QR code de l'appli (l'adresse de la page, sans ses réglages)
+    AC.charge('qrcode.js').then(() => {
+      const qr = window.qrcode(0, 'M');
+      qr.addData(location.origin + location.pathname);
+      qr.make();
+      const n = qr.getModuleCount();
+      let d = '';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+      $('#vt-qr').innerHTML = `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" aria-hidden="true"><path d="${d}" fill="#2A1B18"/></svg>`;
+    }).catch(() => {});
+  }
+
   /* ---------- démarrage ---------- */
   async function init() {
     document.documentElement.classList.remove('no-js');
+    // la fenêtre passe d'un mode à l'autre (on l'agrandit, on la rétrécit) : on recharge dans le bon
+    const html = document.documentElement;
+    if (!html.classList.contains('en-cadre') && window.matchMedia) {
+      const mq = matchMedia(VITRINE), change = () => { if (mq.matches !== html.classList.contains('mode-vitrine')) location.reload(); };
+      if (mq.addEventListener) mq.addEventListener('change', change); else if (mq.addListener) mq.addListener(change);
+    }
+    if (html.classList.contains('mode-vitrine')) { initVitrine(); return; }
     initSound();
     initSheets();
     initTabs();
     initHours();
     route(true);
-    const mods = ['logo', 'carte', 'brunch', 'fidelite', 'nous', 'accueil'];
     try { initBureau(); } catch (e) { console.warn('bureau', e); }
-    mods.forEach((m) => { try { AC[m] && AC[m].init && AC[m].init(); } catch (e) { console.warn('module', m, e); } });
+    // l'accueil d'abord ; la carte, le brunch et la fidélité à leur première ouverture, ou dans un temps
+    // mort après la devanture (l'ouverture reste légère)
+    const faits = new Set();
+    const initMod = (m) => {
+      if (faits.has(m)) return;
+      faits.add(m);
+      try { AC[m] && AC[m].init && AC[m].init(); } catch (e) { console.warn('module', m, e); }
+    };
+    const TARD = ['carte', 'brunch', 'fidelite'];
+    ['logo', 'nous', 'accueil'].forEach(initMod);
+    AC.on('view', (v) => { if (TARD.includes(v)) initMod(v); });
+    if (TARD.includes(current)) initMod(current);
+    const ric = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const tempsMort = () => {
+      const m = TARD.find((x) => !faits.has(x));
+      if (m) { initMod(m); ric(tempsMort, { timeout: 2500 }); return; }
+      if (AC.table) AC.table.prechauffer(); // la table de la carte se prépare (dans l'atelier)
+      // le salon, la comptine et la tablée : chargés d'avance, pour que leurs onglets s'ouvrent tout de suite
+      ric(() => AC.charge(['ac-salon.js', 'ac-conte.js', 'ac-tablee.js']).catch(() => {}), { timeout: 4000 });
+    };
     const fac = initFacade();
     initVitre();
     const splash = AC.splash ? AC.splash() : Promise.resolve({ fromSplash: false });
@@ -309,9 +387,8 @@
       if (!sp || !sp.skipped) await f.play({ withLetters: !(sp && sp.letters) });
       f.idle();
       hint();
-      // la table de la carte se prépare en temps mort
-      setTimeout(() => (window.requestIdleCallback || ((cb) => setTimeout(cb, 200)))(() => AC.table && AC.table.prechauffer(), { timeout: 2500 }), 1200);
     }
+    setTimeout(() => ric(tempsMort, { timeout: 2500 }), 1200);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

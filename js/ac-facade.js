@@ -89,9 +89,12 @@
     return g;
   }
 
-  /* ---------- texture d'enduit (canvas → image, une fois) ---------- */
+  /* ---------- texture d'enduit (canvas → image, une fois ; gardée d'une visite à l'autre : elle ne change pas) ---------- */
   let plasterURL = null;
+  const ENDUIT = 'ac:enduit:1';
   function plasterTexture() {
+    if (plasterURL) return plasterURL;
+    try { plasterURL = localStorage.getItem(ENDUIT); } catch (e) { /* navigation privée */ }
     if (plasterURL) return plasterURL;
     const c = document.createElement('canvas');
     c.width = c.height = 160;
@@ -110,6 +113,7 @@
     }
     x.putImageData(img, 0, 0);
     plasterURL = c.toDataURL();
+    try { localStorage.setItem(ENDUIT, plasterURL); } catch (e) { /* plein, ou navigation privée */ }
     return plasterURL;
   }
 
@@ -624,7 +628,7 @@
     // une brindille ramifiée (deux niveaux), qui part de la corniche. Les brindilles fixes sont fusionnées
     // (un chemin par couleur et par épaisseur : peu d'éléments pour le téléphone) ; celles qui se balancent
     // sont regroupées dans un <g> avec leurs rameaux.
-    const merged = new Map();
+    const merged = new Map(), pivots = new Map();
     function segs(out, x0, y0, len, ang, wid, col, depth) {
       const x1 = x0 + Math.cos(ang) * len, y1 = y0 + Math.sin(ang) * len;
       const bend = (R() - 0.5) * len * 0.35;
@@ -644,7 +648,7 @@
       segs(out, x0, y0, len, ang, wid, col, 0);
       if (sway) {
         const g = S('g', { class: 'fa-twig' }, par);
-        g.style.transformOrigin = `${f(x0)}px ${f(y0)}px`;
+        pivots.set(g, [f(x0), f(y0)]); // elle se balance autour de son pied (voir idle)
         out.forEach(([c, w, d]) => path(g, d, 'none', { stroke: c, 'stroke-width': w, 'stroke-linecap': 'round' }));
         return g;
       }
@@ -1040,19 +1044,33 @@
        ====================================================================== */
     host.appendChild(svg);
     let isNight = false, ouvert = true, statut = null, knocking = false, camAnim = null;
-    // le reflet passe sur les vitres toutes les 7 s ; au passage, les lettres dorées s'allument et une étincelle brille
+    // le reflet passe sur les vitres toutes les 7 s ; au passage, les lettres dorées s'allument et une étincelle brille.
+    // Piloté par l'ambiance (arrêté quand la devanture ne se voit pas) : 24 images/s pendant qu'il passe (les
+    // 55 premiers % du cycle), et le reste du temps rien ne bouge, donc rien à redessiner.
     function glints() {
-      const T = { dur: '7s', begin: 'indefinite', repeatCount: 'indefinite' };
-      const X0 = -60, X1 = 420, kt = '0;0.55;1', at = (x) => `${f(x)};${f(x + X1 - X0)};${f(x + X1 - X0)}`;
-      const ts = ((104 + horW / 2 + 0.5 - 69 + 0.3249 * 310.5 - X0) / (X1 - X0)) * 0.55; // quand le reflet atteint la fin du mot
-      const anims = [
-        S('animateTransform', { attributeName: 'transform', type: 'translate', values: `${X0} 0;${X1} 0;${X1} 0`, keyTimes: kt, ...T }, band),
-        S('animate', { attributeName: 'opacity', values: '0;1;1;0;0', keyTimes: '0;0.08;0.47;0.55;1', ...T }, band),
-        S('animate', { attributeName: 'x1', values: at(X0 - 41.04), keyTimes: kt, ...T }, horGrad),
-        S('animate', { attributeName: 'x2', values: at(X0 - 24.76), keyTimes: kt, ...T }, horGrad),
-        S('animateTransform', { attributeName: 'transform', type: 'scale', values: '0;0;1;0;0', keyTimes: `0;${(ts - 0.018).toFixed(3)};${ts.toFixed(3)};${(ts + 0.04).toFixed(3)};1`, ...T }, sparkleIn),
-      ];
-      requestAnimationFrame(() => anims.forEach((a) => a.beginElement && a.beginElement()));
+      const D = 7000, FIN = 0.55, X0 = -60, DX = 420 - X0;
+      const ts = ((104 + horW / 2 + 0.5 - 69 + 0.3249 * 310.5 - X0) / DX) * FIN; // quand le reflet atteint la fin du mot
+      // interpolation linéaire par morceaux, [[instant du cycle, valeur], …]
+      const lin = (p, pts) => {
+        for (let i = 1; i < pts.length; i++) if (p <= pts[i][0]) { const [a, va] = pts[i - 1], [b, vb] = pts[i]; return va + (vb - va) * ((p - a) / (b - a || 1)); }
+        return pts[pts.length - 1][1];
+      };
+      const OPACITE = [[0, 0], [0.08, 1], [0.47, 1], [FIN, 0], [1, 0]];
+      const ETINCELLE = [[0, 0], [ts - 0.018, 0], [ts, 1], [ts + 0.04, 0], [1, 0]];
+      let avant = '';
+      AC.ambiance.pilote((t) => {
+        const p = (t % D) / D, x = DX * Math.min(1, p / FIN);
+        const c = (n) => Math.round(n * 100) / 100; // l'opacité et l'étincelle, au centième
+        const v = [f(X0 + x), c(lin(p, OPACITE)), f(X0 - 41.04 + x), f(X0 - 24.76 + x), c(lin(p, ETINCELLE))];
+        const cle = v.join(' ');
+        if (cle === avant) return;
+        avant = cle;
+        band.setAttribute('transform', `translate(${v[0]} 0)`);
+        band.setAttribute('opacity', v[1]);
+        horGrad.setAttribute('x1', v[2]);
+        horGrad.setAttribute('x2', v[3]);
+        sparkleIn.setAttribute('transform', `scale(${v[4]})`);
+      }, host, (t) => ((t % D) / D < FIN + 0.01 ? 24 : 4));
     }
 
     const api = {
@@ -1069,7 +1087,6 @@
         ouvert = !!(st && st.ouvert);
         signTxt.textContent = ouvert ? 'OUVERT' : 'FERMÉ';
         signTxt.setAttribute('fill', ouvert ? P.teal : '#A13D3D');
-        lit.querySelectorAll('.fa-glow').forEach((gl) => { gl.style.opacity = ouvert ? '' : '0.28'; });
         // vinyle des horaires : les heures réelles, et le jour même en doré
         const H = AC.HOURS ? AC.HOURS.semaine : [];
         const order = [1, 2, 3, 4, 5, 6, 0];
@@ -1145,38 +1162,40 @@
         setTimeout(() => lettersG.setAttribute('filter', paintF), withLetters ? 0 : 1600);
       },
 
-      /** Vie ambiante : vapeur, fleurs, enseigne, reflets, oiseaux */
+      /** Vie ambiante : vapeur, fleurs, enseigne, reflets, oiseaux (les boucles sans fin passent par
+          AC.ambiance : avancées à petite cadence, arrêtées quand la devanture ne se voit pas) */
       idle(frozen) {
         if (AC.reduced || frozen) {
           steam.querySelectorAll('.fa-wisp').forEach((w) => { w.style.opacity = '0.25'; });
           return;
         }
+        const vit = (a) => AC.ambiance.anime(a, host);
         steam.querySelectorAll('.fa-wisp').forEach((w, i) => {
-          w.animate([
+          vit(w.animate([
             { opacity: 0, transform: 'translate(0,4px) scale(.7,.8)' },
             { opacity: 0.55, offset: 0.3 },
             { opacity: 0, transform: `translate(${i % 2 ? 3 : -2}px,-16px) scale(1.2,1.25)` },
-          ], { duration: 2600 + i * 400, delay: i * 800, iterations: Infinity, easing: 'ease-out' });
+          ], { duration: 2600 + i * 400, delay: i * 800, iterations: Infinity, easing: 'ease-out' }));
         });
-        plaqueG.animate([{ transform: 'rotate(-1.8deg)' }, { transform: 'rotate(1.8deg)' }], { duration: 3200, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
-        potsSway.forEach((p, i) => p.animate([{ transform: 'rotate(-1.2deg)' }, { transform: 'rotate(1.4deg)' }], { duration: 2600 + i * 500, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
-        twigs.querySelectorAll('.fa-twig').forEach((t, i) => {
-          t.animate([{ transform: 'rotate(-1.4deg)' }, { transform: 'rotate(1.4deg)' }], { duration: 2400 + (i % 7) * 300, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
-        });
-        [...lit.querySelectorAll('.fa-glow'), ...litDoor.querySelectorAll('.fa-glow')].forEach((gl, i) => gl.animate([{ opacity: 0.9 }, { opacity: 1 }], { duration: 1800 + i * 300, direction: 'alternate', iterations: Infinity }));
+        vit(plaqueG.animate([{ transform: 'rotate(-1.8deg)' }, { transform: 'rotate(1.8deg)' }], { duration: 3200, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
+        potsSway.forEach((p, i) => vit(p.animate([{ transform: 'rotate(-1.2deg)' }, { transform: 'rotate(1.4deg)' }], { duration: 2600 + i * 500, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' })));
+        const brins = [...twigs.querySelectorAll('.fa-twig')];
+        AC.ambiance.balance(brins, host, { de: -1.4, a: 1.4, periode: (i) => 2400 + (i % 7) * 300, pivot: (i) => pivots.get(brins[i]) });
         glints();
-        // la lumière de la porte respire, des poussières dorées flottent dedans
-        halo.animate([{ opacity: 0.65 }, { opacity: 1 }], { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
-        rim.animate([{ opacity: 0.55 }, { opacity: 0.95 }], { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
+        // la lumière de la porte respire (par petits paliers : sa grande tache n'est repeinte que quelques fois
+        // par seconde), des poussières dorées flottent dedans
+        const paliers = { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'steps(12, jump-none)' };
+        vit(halo.animate([{ opacity: 0.65, easing: 'ease-in-out' }, { opacity: 1 }], paliers));
+        vit(rim.animate([{ opacity: 0.55, easing: 'ease-in-out' }, { opacity: 0.95 }], paliers));
         moteEls.forEach((m, i) => {
           const dx = (Math.random() - 0.5) * 16, dy = -(16 + Math.random() * 28);
-          m.animate([{ opacity: 0, transform: 'translate(0px, 0px)' }, { opacity: 0.9, offset: 0.35 }, { opacity: 0, transform: `translate(${f(dx)}px, ${f(dy)}px)` }], { duration: 3800 + Math.random() * 3000, delay: i * 650, iterations: Infinity, easing: 'ease-in-out' });
+          vit(m.animate([{ opacity: 0, transform: 'translate(0px, 0px)' }, { opacity: 0.9, offset: 0.35 }, { opacity: 0, transform: `translate(${f(dx)}px, ${f(dy)}px)` }], { duration: 3800 + Math.random() * 3000, delay: i * 650, iterations: Infinity, easing: 'ease-in-out' }));
         });
         // de temps en temps, un courant d'air pousse la porte (on a envie de la toucher)
         const loopDoor = async () => {
           await AC.wait(8000 + Math.random() * 7000);
           if (!svg.isConnected) return;
-          if (!document.hidden && !knocking && (!AC.view || AC.view === 'accueil')) {
+          if (!knocking && AC.ambiance.visible(host)) {
             swingSign(3.5);
             await swingTo(AJAR + 0.11, 1100);
             if (!knocking) await swingTo(AJAR, 1500);
@@ -1188,7 +1207,7 @@
         const loopBird = async () => {
           await AC.wait(3200 + Math.random() * 4800);
           if (!svg.isConnected) return;
-          if (!document.hidden && (!AC.view || AC.view === 'accueil')) viePiaf();
+          if (AC.ambiance.visible(host)) viePiaf();
           loopBird();
         };
         setTimeout(() => viePiaf(), 1800);

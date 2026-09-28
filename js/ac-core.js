@@ -169,15 +169,38 @@
     });
   AC.wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  /* ---------- Des scripts chargés à la demande (le salon, la comptine, la tablée, le QR code) ----------
+     Même estampille ?v= que ce fichier ; chacun une seule fois, dans l'ordre donné → Promise */
+  const VERSION = (() => {
+    try { const s = document.currentScript, i = s && s.src ? s.src.indexOf('?') : -1; return i >= 0 ? s.src.slice(i) : ''; } catch (e) { return ''; }
+  })();
+  const charges = new Map();
+  AC.charge = (fichiers) => [].concat(fichiers).reduce((p, f) => p.then(() => {
+    if (!charges.has(f)) {
+      charges.set(f, new Promise((ok, ko) => {
+        const s = document.createElement('script');
+        s.src = 'js/' + f + VERSION;
+        s.onload = ok;
+        s.onerror = () => { charges.delete(f); ko(new Error('script introuvable : ' + f)); };
+        document.head.appendChild(s);
+      }));
+    }
+    return charges.get(f);
+  }), Promise.resolve());
+
   /* ---------- Formats ---------- */
   const nfEUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
   AC.fmtPrice = (n) => nfEUR.format(n);
   AC.pad = (n, l = 4) => String(n).padStart(l, '0');
 
-  /* Heure de Paris, quel que soit le fuseau du visiteur */
+  /* Heure de Paris, quel que soit le fuseau du visiteur (un seul formateur : en créer un à chaque appel coûte cher) */
+  let fmtParis = null;
   AC.parisNow = function () {
     try {
-      return new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+      if (!fmtParis) fmtParis = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
+      const p = {};
+      fmtParis.formatToParts(new Date()).forEach((x) => { p[x.type] = x.value; });
+      return new Date(+p.year, p.month - 1, +p.day, p.hour % 24, +p.minute, +p.second);
     } catch (e) {
       return new Date();
     }
@@ -210,6 +233,100 @@
   const listeners = {};
   AC.on = (ev, fn) => ((listeners[ev] = listeners[ev] || []).push(fn));
   AC.emit = (ev, data) => (listeners[ev] || []).forEach((fn) => fn(data));
+
+  /* ---------- L'ambiance : les animations décoratives sans fin (feuillages, vapeur, reflets…) ----------
+     Redessiner une scène SVG coûte cher, à chaque image : on ne les laisse pas tourner seules à 60 images/s.
+     Chacune appartient à une scène (l'élément qui doit être à l'écran) ; on les avance nous-mêmes, à leur
+     cadence : 12 images/s pour les mouvements lents (un rameau qui se balance y bouge de moins d'un dixième
+     de pixel par image : l'œil n'y voit rien), 24 pour ce qui file (le reflet qui passe sur les vitres).
+     Et seulement quand la scène se voit : son onglet est ouvert, elle est dans la fenêtre, la page est au
+     premier plan. Sinon elles s'arrêtent net, et ne coûtent plus rien.
+       AC.ambiance.anime(animation, scene, ips)  une animation Web sans fin (mise en pause, puis avancée par nous)
+       AC.ambiance.pilote(fn, scene, ips)        une fonction fn(t) qui dessine l'instant t (ms, le temps de la
+                                                 scène) ; ips : un nombre, ou une fonction de t (filer au bon moment)
+       AC.ambiance.balance(els, scene, opts)     des éléments SVG qui se balancent, par leur attribut transform
+                                                 (moins coûteux à redessiner qu'une animation Web de rotation)
+       AC.ambiance.visible(scene)                la scène se voit-elle ? (pour les petites vies à minuteur)  */
+  AC.ambiance = (function () {
+    const scenes = new Map(); // élément → { vue, dedans, items : Map<Animation | fonction, { ips, der, t }> }
+    let vue = null, minuteur = 0, raf = 0;
+    const io = window.IntersectionObserver ? new IntersectionObserver((es) => {
+      es.forEach((e) => { const s = scenes.get(e.target); if (s) s.dedans = e.isIntersecting; });
+      relance();
+    }) : null;
+    function scene(el) {
+      let s = scenes.get(el);
+      if (!s) {
+        const v = el.closest && el.closest('.view');
+        s = { vue: v ? v.id : null, dedans: !io, items: new Map() };
+        scenes.set(el, s);
+        if (io) io.observe(el);
+      }
+      return s;
+    }
+    const active = (s) => s.dedans && (!s.vue || s.vue === vue);
+    function image(now) {
+      raf = 0;
+      if (document.hidden) return;
+      let ips = 0;
+      scenes.forEach((s, el) => {
+        if (!el.isConnected) { scenes.delete(el); if (io) io.unobserve(el); return; }
+        if (!active(s)) return;
+        s.items.forEach((it, x) => {
+          const fn = typeof x === 'function';
+          if (!fn) {
+            const t = x.effect && x.effect.target;
+            if (x.playState === 'idle' || (t && !t.isConnected)) { s.items.delete(x); return; }
+          }
+          const cad = typeof it.ips === 'function' ? it.ips(it.t) : it.ips;
+          ips = Math.max(ips, cad);
+          const pas = 1000 / cad, dt = it.der ? now - it.der : pas;
+          if (dt < pas * 0.7) return; // pas encore son tour
+          it.der = now;
+          const avance = Math.min(dt, pas * 2); // au retour d'une pause : on reprend sans sauter
+          if (fn) { it.t += avance; x(it.t); }
+          else x.currentTime = (x.currentTime || 0) + avance;
+        });
+      });
+      if (ips) minuteur = setTimeout(demande, 750 / ips);
+    }
+    function demande() { minuteur = 0; if (!raf) raf = requestAnimationFrame(image); }
+    function relance() { if (!minuteur && !raf) demande(); }
+    function pilote(fn, el, ips = 24) {
+      scene(el).items.set(fn, { ips, der: 0, t: 0 });
+      relance();
+    }
+    AC.on('view', (v) => { vue = v; relance(); });
+    document.addEventListener('visibilitychange', relance);
+    return {
+      anime(a, el, ips = 12) {
+        const t = el || (a && a.effect && a.effect.target);
+        if (!a || !t) return a;
+        a.pause();
+        scene(t).items.set(a, { ips, der: 0, t: 0 });
+        relance();
+        return a;
+      },
+      pilote,
+      /** de `de` à `a` degrés et retour, adouci, en periode(i) ms ; decale(i) : l'avance de l'élément i (ms) ;
+          pivot(i) : [x, y] (repère de l'élément), sinon son origine */
+      balance(els, el, { de, a, periode, decale = () => 0, pivot = () => null }) {
+        const P = els.map((_, i) => periode(i)), D = els.map((_, i) => decale(i)), O = els.map((_, i) => pivot(i)), der = els.map(() => '');
+        pilote((t) => els.forEach((g, i) => {
+          const u = (t + D[i]) / P[i], k = Math.floor(u), x = u - k;
+          const v = (de + (a - de) * (1 - Math.cos(Math.PI * (k % 2 ? 1 - x : x))) / 2).toFixed(2);
+          if (v === der[i]) return;
+          der[i] = v;
+          g.setAttribute('transform', O[i] ? `rotate(${v} ${O[i][0]} ${O[i][1]})` : `rotate(${v})`);
+        }), el, 12);
+      },
+      visible(el) {
+        if (document.hidden) return false;
+        const s = scenes.get(el);
+        return s ? active(s) : true;
+      },
+    };
+  })();
 
 
   /* ---------- Sons : un sound design léger, synthétisé (WebAudio, aucun fichier) ----------

@@ -2,9 +2,9 @@
    L'Armoire à Cuillères — la table du goûter (onglet « Carte »)
    Vue de dessus, comme leurs photos : table en bois peint menthe, nappe de lin,
    set en rotin, une assiette ancienne avec la part de gâteau, la tasse sur sa
-   soucoupe. Les objets viennent des moteurs de rendu (ac-vaisselle.js pour la
-   vaisselle et les boissons, ac-gateaux.js pour les gâteaux) ; sans eux, un
-   rendu de secours simple.
+   soucoupe. Les objets se calculent dans l'atelier (js/ac-atelier.js : un Worker,
+   la page ne se fige jamais ; sinon les moteurs se chargent dans la page, à la
+   demande) ; si rien ne vient, un rendu de secours simple.
    Service : même contenant → fondu (seul le chocolat change) ; sinon la tasse
    glisse et une autre arrive. Vapeur en SVG au-dessus des boissons chaudes.
    ========================================================================== */
@@ -13,37 +13,102 @@
   const AC = (window.AC = window.AC || {});
 
   const W_MM = 380; // largeur de table visible
+  // ce qui est servi, toujours pareil (les caches de l'atelier se retrouvent d'une visite de l'onglet à l'autre)
+  const ASSIETTE = { motif: 'bleu', d: 200, chantourne: true, seed: 12 };
+  const ROTIN = { d: 300, seed: 3 };
+  const BOISSON = { seed: 4 };
+  const GATEAU = { seed: 7, angle: -0.35 };
   let host, cv, ctx, vie, ro;
-  let size = { w: 0, h: 0, dpr: 1, ppm: 1, H_MM: 380 };
-  let fond = null; // table + nappe + set (canvas de la taille de l'écran)
+  let size = { w: 0, h: 0, dpr: 1, ppm: 1, H_MM: 380, V_MM: 350 };
+  let fond = null; // table + nappe + set (une image de la taille de l'écran)
   let visible = false;
   const S = {
-    boisson: { id: null, sprite: null, prev: null, t: 1, mode: 'fondu', froid: false, contenant: null },
-    gateau: { id: null, sprite: null, prev: null, t: 1 },
+    boisson: { id: null, sprite: null, prev: null, t: 1, mode: 'fondu', froid: false, contenant: null, jeton: 0 },
+    gateau: { id: null, sprite: null, prev: null, t: 1, jeton: 0 },
     plate: null,
   };
   let raf = 0;
 
-  /* ---------- positions (mm, repère de la table) ---------- */
+  /* ---------- l'atelier : les rendus se calculent dans un Worker (js/ac-atelier.js) ; sans Worker (file://,
+     vieux navigateur) ou s'il échoue, le même atelier se charge dans la page, avec les moteurs ---------- */
+  const VER = (() => { const s = document.currentScript; return s && s.src ? new URL(s.src, location.href).search : ''; })();
+  const atelier = (() => {
+    let w = null, n = 0, local = null, essaye = false;
+    const attente = new Map();
+    function surPlace() {
+      if (!local) local = AC.charge(['ac-rendu.js', 'ac-vaisselle.js', 'ac-gateaux.js', 'ac-atelier.js']).then(() => AC.atelierLocal);
+      return local;
+    }
+    // sur place, un calcul à la fois, dans les temps morts pour les précalculs
+    let file = Promise.resolve();
+    const calculeIci = (op, args, tranquille) => (file = file.then(() => surPlace()).then((L) => new Promise((ok, ko) => {
+      const go = () => { try { ok(L.traite(op, args)); } catch (e) { ko(e); } };
+      if (tranquille) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(go, { timeout: 1500 }); else go();
+    })));
+    function abandon() {
+      if (w) { try { w.terminate(); } catch (e) { /* déjà fini */ } }
+      w = null;
+      attente.forEach((p) => calculeIci(p.op, p.args).then(p.ok, p.ko));
+      attente.clear();
+    }
+    function ouvrir() {
+      essaye = true;
+      try {
+        if (!window.Worker || !window.OffscreenCanvas || location.protocol === 'file:') return;
+        w = new Worker('js/ac-atelier.js' + VER);
+        w.onmessage = (e) => {
+          const r = e.data, p = attente.get(r.n);
+          if (!p) return;
+          attente.delete(r.n);
+          if (r.ok) p.ok(r.res);
+          else abandon(); // il calcule mais ne sait pas rendre ses images (un Safari…) : on fait tout ici
+          if (!r.ok) calculeIci(p.op, p.args).then(p.ok, p.ko);
+        };
+        // le Worker n'a pas pu démarrer (moteurs introuvables, OffscreenCanvas incomplet…) : tout se refait ici
+        w.onerror = (e) => {
+          if (e && e.preventDefault) e.preventDefault();
+          abandon();
+        };
+      } catch (e) { w = null; }
+    }
+    return {
+      /** → Promise du résultat ; tranquille : un précalcul (pas de réponse, après les demandes de la page) */
+      demande(op, args, tranquille) {
+        if (!essaye) ouvrir();
+        if (!w) return calculeIci(op, args, tranquille);
+        if (tranquille) { w.postMessage({ op, args, tranquille: true }); return Promise.resolve(null); }
+        return new Promise((ok, ko) => {
+          const i = ++n;
+          attente.set(i, { ok, ko, op, args });
+          w.postMessage({ n: i, op, args });
+        });
+      },
+    };
+  })();
+
+  /* ---------- positions (mm, repère de la table) : dans la partie visible, au-dessus du bandeau (V_MM) ---------- */
   const POS = {
-    plate: () => [W_MM * 0.33, size.H_MM * 0.62],
-    cup: () => [W_MM * 0.72, size.H_MM * 0.36],
+    plate: () => [W_MM * 0.33, size.V_MM * 0.62],
+    cup: () => [W_MM * 0.72, size.V_MM * 0.36],
   };
 
-  /* ---------- données boissons (chaud / froid, contenant) ---------- */
+  /* ---------- données boissons (chaud / froid, contenant) : la liste vient de l'atelier ---------- */
+  let LISTE = null;
   function infoBoisson(id) {
-    const L = AC.Boissons && AC.Boissons.liste;
-    const e = L ? L.find((b) => b.id === id) : null;
+    const e = LISTE ? LISTE.get(id) : null;
     const it = AC.ITEMS ? AC.ITEMS[id] : null;
-    const c = e ? (e.contenant || e.style || '') : '';
-    // le contenant peut être une chaîne ou un objet { type, style, motif, … } : on en fait une clé comparable
-    const cle = typeof c === 'object' ? [c.type, c.style, c.motif, c.soucoupe].join('/') : String(c);
-    const froid = !!((e && (e.froid || /verre|glace|gobelet|bocal/.test(cle))) || (it && it.froid) || /glace|soda|jus|citronnade|sirop|frappe|lait-speculoos/.test(id));
-    return { froid, contenant: cle || (froid ? 'verre' : 'tasse') };
+    const froid = !!((e && e.froid) || (it && it.froid) || /glace|soda|jus|citronnade|sirop|frappe|lait-speculoos/.test(id));
+    return { froid, contenant: (e && e.contenant) || (froid ? 'verre' : 'tasse') };
+  }
+  let listeDemandee = false;
+  function demandeListe() {
+    if (listeDemandee) return;
+    listeDemandee = true;
+    atelier.demande('liste', []).then((l) => { if (Array.isArray(l)) LISTE = new Map(l.map((e) => [e.id, e])); }).catch(() => {});
   }
 
   /* ======================================================================
-     Rendus de secours (si les moteurs ne sont pas chargés)
+     Rendus de secours (si l'atelier ne répond pas)
      ====================================================================== */
   function secoursFond(w, h) {
     const c = document.createElement('canvas');
@@ -87,52 +152,18 @@
   }
 
   /* ======================================================================
-     Fabrication des objets (moteurs réels si présents)
+     Ce qu'on demande à l'atelier
      ====================================================================== */
-  function makeFond() {
-    const w = Math.round(size.w * size.dpr), h = Math.round(size.h * size.dpr), ppm = size.ppm;
-    const V = AC.Vaisselle;
-    if (!V || !V.table) return secoursFond(w, h);
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const x = c.getContext('2d');
-    try {
-      const t = V.table({ bois: 'menthe', w: W_MM, h: size.H_MM, seed: 5 }, ppm);
-      x.drawImage(t, 0, 0, w, h);
-      if (V.nappe) { // un chemin de lin en travers, sous la tasse
-        const n = V.nappe({ w: 150, h: size.H_MM * 1.5, seed: 9 }, ppm);
-        x.save();
-        x.translate(W_MM * 0.74 * ppm, size.H_MM * 0.5 * ppm);
-        x.rotate(0.1);
-        x.shadowColor = 'rgba(40,30,20,.25)'; x.shadowBlur = 6 * ppm; x.shadowOffsetX = 2 * ppm; x.shadowOffsetY = 3 * ppm;
-        x.drawImage(n, -n.width / 2, -n.height / 2);
-        x.restore();
-      }
-      if (V.rotin) {
-        const r = V.rotin({ d: 300, seed: 3 }, ppm);
-        const [px, py] = POS.plate();
-        AC.R.draw(x, r, px * ppm, py * ppm);
-      }
-    } catch (e) {
-      console.warn('table', e);
-      return secoursFond(w, h);
-    }
-    return c;
-  }
-  function makePlate() {
-    const V = AC.Vaisselle;
-    try { if (V && V.assiette) return V.assiette({ motif: 'bleu', d: 200, chantourne: true, seed: 12 }, size.ppm); } catch (e) { console.warn('assiette', e); }
-    return secoursSprite('plate', null, size.ppm);
-  }
-  function makeBoisson(id) {
-    const B = AC.Boissons;
-    try { if (B && B.servir) return B.servir(id, { seed: 4 }, size.ppm); } catch (e) { console.warn('boisson', id, e); }
-    return secoursSprite('boisson', id, size.ppm);
-  }
-  function makeGateau(id) {
-    const G = AC.Gateaux;
-    try { if (G && G.rendre) return G.rendre(id, { seed: 7, angle: -0.35 }, size.ppm); } catch (e) { console.warn('gâteau', id, e); }
-    return secoursSprite('gateau', id, size.ppm);
+  const demandeFond = () => atelier.demande('fond', [{ w: cv.width, h: cv.height, ppm: size.ppm, hMM: size.H_MM, rotin: POS.plate() }]).then((r) => r.canvas).catch(() => secoursFond(cv.width, cv.height));
+  const demandeAssiette = (ppm) => atelier.demande('assiette', [ASSIETTE, ppm]).catch(() => secoursSprite('plate', null, ppm));
+  const demandeBoisson = (id, ppm) => atelier.demande('servir', [id, BOISSON, ppm]).catch(() => secoursSprite('boisson', id, ppm));
+  const demandeGateau = (id, ppm) => atelier.demande('gateau', [id, GATEAU, ppm]).catch(() => secoursSprite('gateau', id, ppm));
+
+  /** Une image de l'atelier dont on ne se sert plus : rendue tout de suite (ImageBitmap), sans attendre le ramasse-miettes */
+  function libere(sp) {
+    const B = S.boisson, G = S.gateau;
+    if (!sp || sp === S.plate || sp === B.sprite || sp === B.prev || sp === G.sprite || sp === G.prev) return; // encore dessinée
+    [sp.canvas, sp.shadow].forEach((c) => { if (c && typeof c.close === 'function') c.close(); });
   }
 
   /* ======================================================================
@@ -141,17 +172,26 @@
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
   const easeBack = (t) => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
 
+  /** Pose un sprite centré sur (x, y) mm, avec son ombre (comme AC.R.draw), à l'échelle de la table */
   function drawSprite(sp, xmm, ymm, { s = 1, a = 1, rot = 0, dx = 0, dy = 0 } = {}) {
-    if (!sp || a <= 0.001) return;
-    const p = size.ppm;
-    AC.R ? AC.R.draw(ctx, sp, (xmm + dx) * p, (ymm + dy) * p, { s, alpha: a, rot }) : ctx.drawImage(sp.canvas, (xmm + dx) * p - sp.canvas.width / 2, (ymm + dy) * p - sp.canvas.height / 2);
+    if (!sp || !sp.canvas || a <= 0.001) return;
+    const p = size.ppm, k = sp.canvas.width / sp.w; // pixels par mm du sprite
+    ctx.save();
+    ctx.translate((xmm + dx) * p, (ymm + dy) * p);
+    if (rot) ctx.rotate(rot);
+    ctx.scale((s * p) / k, (s * p) / k);
+    ctx.globalAlpha = a;
+    const ox = -sp.ax * k, oy = -sp.ay * k;
+    if (sp.shadow) ctx.drawImage(sp.shadow, ox, oy);
+    ctx.drawImage(sp.canvas, ox, oy);
+    ctx.restore();
   }
 
   function draw() {
     if (!ctx) return;
     const W = cv.width, H = cv.height;
     ctx.clearRect(0, 0, W, H);
-    if (fond) ctx.drawImage(fond, 0, 0);
+    if (fond) ctx.drawImage(fond, 0, 0, W, H);
     const [px, py] = POS.plate(), [cx, cy] = POS.cup();
     // assiette + gâteau
     drawSprite(S.plate, px, py);
@@ -185,7 +225,7 @@
       let busy = false;
       [S.boisson, S.gateau].forEach((o) => {
         if (o.t < 1) { o.t = Math.min(1, o.t + dt / (o === S.boisson ? (o.mode === 'fondu' ? 0.7 : 1.1) : 0.65)); busy = true; }
-        if (o.t >= 1) o.prev = null;
+        if (o.t >= 1 && o.prev) { const p = o.prev; o.prev = null; libere(p); }
       });
       draw();
       if (busy) raf = requestAnimationFrame(step);
@@ -205,11 +245,11 @@
     steamG = AC.svg('g', { class: 'tg-vapeur', filter: `url(#${f})`, opacity: 0 }, svg);
     for (let k = 0; k < 4; k++) {
       const w = AC.svg('path', { d: `M${k * 9 - 13} 0c-8 -14 8 -22 0 -36s8 -22 0 -36`, fill: 'none', stroke: '#fff', 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0 }, steamG);
-      if (!AC.reduced) w.animate([
+      if (!AC.reduced) AC.ambiance.anime(w.animate([
         { opacity: 0, transform: 'translate(0,6px) scale(.7,.8)' },
         { opacity: 0.42, offset: 0.35 },
         { opacity: 0, transform: `translate(${k % 2 ? 7 : -6}px,-38px) scale(1.25,1.3)` },
-      ], { duration: 2800 + k * 380, delay: k * 650, iterations: Infinity, easing: 'ease-out' });
+      ], { duration: 2800 + k * 380, delay: k * 650, iterations: Infinity, easing: 'ease-out' }), host);
       else w.setAttribute('opacity', 0.25);
     }
   }
@@ -223,60 +263,63 @@
     const k = size.ppm / size.dpr; // px CSS par mm
     steamG.setAttribute('transform', `translate(${(cx * k).toFixed(1)} ${(cy * k).toFixed(1)}) scale(${Math.max(0.7, k * 1.1).toFixed(2)})`);
     steamG.style.transition = 'opacity .8s ease';
-    steamG.style.opacity = S.boisson.froid ? '0' : '1';
+    steamG.style.opacity = S.boisson.froid || !sp ? '0' : '1';
   }
 
   /* ======================================================================
      Mise en page
      ====================================================================== */
+  let tailleJeton = 0;
   function resize() {
     const r = host.getBoundingClientRect();
     if (!r.width || !r.height) return false;
     const dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    size = { w: r.width, h: r.height, dpr, ppm: (r.width * dpr) / W_MM, H_MM: (r.height / r.width) * W_MM };
+    const bandeau = host.querySelector('.tg-bandeau'), hb = bandeau ? bandeau.offsetHeight : 0;
+    size = { w: r.width, h: r.height, dpr, ppm: (r.width * dpr) / W_MM, H_MM: (r.height / r.width) * W_MM, V_MM: ((r.height - hb) / r.width) * W_MM };
     cv.width = Math.round(r.width * dpr);
     cv.height = Math.round(r.height * dpr);
-    fond = makeFond();
-    S.plate = makePlate();
-    if (S.boisson.id) { S.boisson.sprite = makeBoisson(S.boisson.id); S.boisson.prev = null; S.boisson.t = 1; }
-    if (S.gateau.id) { S.gateau.sprite = makeGateau(S.gateau.id); S.gateau.prev = null; S.gateau.t = 1; }
     buildSteam();
-    draw();
+    draw(); // ce qu'on a déjà (redessiné à la nouvelle échelle), en attendant l'atelier
     steamPlace();
+    // tout, à la bonne échelle : le fond, l'assiette, la boisson et le gâteau servis
+    const j = ++tailleJeton, ppm = size.ppm, B = S.boisson, G = S.gateau, bId = B.id, gId = G.id;
+    Promise.all([demandeFond(), demandeAssiette(ppm), bId ? demandeBoisson(bId, ppm) : null, gId ? demandeGateau(gId, ppm) : null]).then(([f, p, b, g]) => {
+      if (j !== tailleJeton) { [p, b, g].forEach(libere); if (f && f.close) f.close(); return; } // une autre taille est arrivée entre-temps
+      const avant = [fond, S.plate, B.sprite, B.prev, G.sprite, G.prev];
+      fond = f;
+      S.plate = p;
+      if (b && B.id === bId) { B.sprite = b; B.prev = null; B.t = 1; } else libere(b);
+      if (g && G.id === gId) { G.sprite = g; G.prev = null; G.t = 1; } else libere(g);
+      if (avant[0] && avant[0] !== fond && avant[0].close) avant[0].close();
+      avant.slice(1).forEach(libere);
+      draw();
+      steamPlace();
+      cv.classList.add('pret');
+      // les douze crus, préparés en tâche de fond : le nuancier répond tout de suite
+      (AC.CRUS || []).forEach((c) => atelier.demande('servir', [c.id, BOISSON, ppm], true));
+    });
     return true;
   }
 
   function pret() {
     if (!visible) return false;
-    if (!size.w) return resize();
+    if (!size.w) { resize(); return false; }
     return true;
   }
 
-  /* précalcul en temps mort (l'onglet n'est pas encore ouvert) : on devine sa taille et on remplit les caches
-     des moteurs de rendu, pour que la table s'affiche tout de suite à la première visite */
+  /* précalcul en temps mort (l'onglet n'est pas encore ouvert) : on devine sa taille, et l'atelier prépare
+     l'assiette, le set, la boisson et le gâteau du jour (dans son Worker : la page ne s'en aperçoit pas) */
   function prechauffer() {
+    demandeListe();
     if (visible || size.w) return;
     const main = document.querySelector('main');
     if (!main) return;
-    const w = main.clientWidth, h = Math.min(w * 0.96, 420);
-    const dpr = Math.min(2.5, window.devicePixelRatio || 1);
-    const ppm = (w * dpr) / W_MM;
-    const etapes = [
-      () => AC.Vaisselle && AC.Vaisselle.assiette && makePlateAt(ppm),
-      () => S.gateau.id && AC.Gateaux && AC.Gateaux.rendre(S.gateau.id, { seed: 7, angle: -0.35 }, ppm),
-      () => S.boisson.id && AC.Boissons && AC.Boissons.servir(S.boisson.id, { seed: 4 }, ppm),
-      () => AC.Vaisselle && AC.Vaisselle.rotin && AC.Vaisselle.rotin({ d: 300, seed: 3 }, ppm),
-    ];
-    void h;
-    const suite = () => {
-      const f = etapes.shift();
-      if (!f || visible) return;
-      try { f(); } catch (e) { /* on réessaiera à l'ouverture */ }
-      (window.requestIdleCallback || ((cb) => setTimeout(cb, 60)))(suite, { timeout: 800 });
-    };
-    suite();
+    const ppm = (main.clientWidth * Math.min(2.5, window.devicePixelRatio || 1)) / W_MM;
+    atelier.demande('assiette', [ASSIETTE, ppm], true);
+    if (S.gateau.id) atelier.demande('gateau', [S.gateau.id, GATEAU, ppm], true);
+    if (S.boisson.id) atelier.demande('servir', [S.boisson.id, BOISSON, ppm], true);
+    atelier.demande('rotin', [ROTIN, ppm], true);
   }
-  function makePlateAt(ppm) { return AC.Vaisselle.assiette({ motif: 'bleu', d: 200, chantourne: true, seed: 12 }, ppm); }
 
   AC.table = {
     prechauffer,
@@ -293,11 +336,8 @@
     reveil() {
       if (visible) return;
       visible = true;
-      requestAnimationFrame(() => {
-        resize();
-        // les douze crus, préparés en temps mort : le nuancier répond tout de suite
-        if (AC.Vaisselle && AC.Vaisselle.prechauffer) setTimeout(() => { try { AC.Vaisselle.prechauffer(AC.CRUS.map((c) => c.id), size.ppm); } catch (e) { /* rien */ } }, 900);
-      });
+      demandeListe();
+      requestAnimationFrame(() => resize());
     },
     boisson(id, { silencieux } = {}) {
       const B = S.boisson;
@@ -308,26 +348,39 @@
       B.froid = info.froid;
       B.contenant = info.contenant;
       if (!pret()) return;
-      B.prev = B.sprite;
-      B.sprite = makeBoisson(id);
-      B.t = 0;
-      B.mode = memeContenant || !B.prev ? 'fondu' : 'glisse';
+      const mode = memeContenant || !B.sprite ? 'fondu' : 'glisse';
       if (!silencieux && AC.sfx) {
-        if (B.mode === 'fondu') AC.sfx.play(info.froid ? 'ice' : 'stir', { n: 2 });
+        if (mode === 'fondu') AC.sfx.play(info.froid ? 'ice' : 'stir', { n: 2 });
         else { AC.sfx.play('clink', { delay: 520 }); if (info.froid) AC.sfx.play('ice', { delay: 700 }); }
       }
-      animate();
+      const j = ++B.jeton, ppm = size.ppm;
+      demandeBoisson(id, ppm).then((sp) => {
+        if (j !== B.jeton || ppm !== size.ppm) { libere(sp); return; } // une autre boisson (ou une autre taille) est passée devant
+        const vieille = B.prev;
+        B.prev = B.sprite;
+        B.sprite = sp;
+        libere(vieille);
+        B.t = 0;
+        B.mode = mode;
+        animate();
+      });
     },
     gateau(id, { silencieux } = {}) {
       const G = S.gateau;
       if (G.id === id) return;
       G.id = id;
       if (!pret()) return;
-      G.prev = G.sprite;
-      G.sprite = makeGateau(id);
-      G.t = 0;
       if (!silencieux && AC.sfx) AC.sfx.play('plate', { delay: 250 });
-      animate();
+      const j = ++G.jeton, ppm = size.ppm;
+      demandeGateau(id, ppm).then((sp) => {
+        if (j !== G.jeton || ppm !== size.ppm) { libere(sp); return; }
+        const vieux = G.prev;
+        G.prev = G.sprite;
+        G.sprite = sp;
+        libere(vieux);
+        G.t = 0;
+        animate();
+      });
     },
   };
 })();

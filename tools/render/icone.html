@@ -2,33 +2,22 @@
 <html lang="fr"><head><meta charset="utf-8">
 <style> html, body { margin: 0; background: transparent; } #ic { width: 512px; height: 512px; display: block; } </style></head>
 <body><svg id="ic" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"></svg>
-<script src="../../js/ac-core.js"></script><script src="../../js/ac-brand.js"></script><script src="../../js/ac-nous.js"></script>
+<script src="../../js/ac-core.js"></script><script src="../../js/ac-brand.js"></script><script src="cuillere-anneau.js"></script>
 <script>
-// L'icône d'appli : leur cuillère ciselée, blanche au trait, sur le bois chocolat de la devanture, un bouquet de leurs feuilles.
-// ?k=0.82 : version « maskable » (tout dans le cercle de sécurité d'Android)
+// L'icône d'appli : leur cuillère ciselée (celle du logo), pliée en cercle comme une bague-cuillère,
+// au trait noir sur fond blanc (le cuilleron et le haut du manche se rejoignent en haut).
+// ?k=0.8 : version « maskable » (tout dans le cercle de sécurité d'Android) ; ?trait= : épaissit le trait
+// (le petit favicon en a besoin).
 (() => {
-  const k = +(new URLSearchParams(location.search).get('k') || 1);
+  const q = new URLSearchParams(location.search);
+  const k = +(q.get('k') || 1), trait = +(q.get('trait') || 2.8);
   const svg = document.getElementById('ic');
-  const S = (t, a, p) => AC.svg(t, a, p);
-  const defs = S('defs', {}, svg);
-  const g0 = S('radialGradient', { id: 'fond', cx: .42, cy: .35, r: .8 }, defs);
-  S('stop', { offset: 0, 'stop-color': '#5A4038' }, g0); S('stop', { offset: .65, 'stop-color': '#3B2723' }, g0); S('stop', { offset: 1, 'stop-color': '#2A1B18' }, g0);
-  S('rect', { width: 512, height: 512, fill: 'url(#fond)' }, svg);
-  const g = S('g', { transform: `translate(256 256) scale(${k}) translate(-256 -256)` }, svg);
-  // un médaillon porcelaine
-  S('circle', { cx: 256, cy: 256, r: 196, fill: '#F7F0E4' }, g);
-  S('circle', { cx: 256, cy: 256, r: 184, fill: 'none', stroke: '#2E767E', 'stroke-width': 3 }, g);
-  S('circle', { cx: 256, cy: 256, r: 176, fill: 'none', stroke: '#A1D4D5', 'stroke-width': 6 }, g);
-  // les feuilles, au pied du médaillon
-  const spec = [['aqua', 200, 400, 150, -52], ['turquoise', 232, 408, 150, -24], ['prune', 262, 410, 170, 6], ['fuchsia', 290, 408, 130, 30], ['marine', 318, 400, 100, 58]];
-  spec.forEach(([id, x, y, h, r]) => { const L = AC.feuille && AC.feuille(id); if (!L) return; const gg = S('g', { transform: `translate(${x} ${y}) rotate(${r}) scale(${h / 100}) translate(${-L.pivot[0]} ${-L.pivot[1]})` }, g); AC.dessineFeuille(gg, L); });
-  // la cuillère du logo
-  const C = AC.BRAND && (AC.BRAND.cuillere || (AC.BRAND.logo && AC.BRAND.logo.spoon));
-  if (C && C.bbox) {
-    const [bx, by, bx1, by1] = C.bbox, bw = bx1 - bx, bh = by1 - by, H = 330, s = H / bh;
-    const gs = S('g', { transform: `translate(${256 - (bw * s) / 2} ${256 - H / 2 - 6}) scale(${s}) translate(${-bx} ${-by})` }, g);
-    if (C.fill) S('path', { d: C.fill, fill: '#FFFFFF' }, gs);
-    S('path', { d: C.lines, fill: '#2A1B18' }, gs);
+  AC.svg('rect', { width: 512, height: 512, fill: '#FFFFFF' }, svg);
+  const g = AC.svg('g', { transform: `translate(256 256) scale(${k}) translate(-256 -256)` }, svg);
+  const a = AC.cuillereAnneau({ cx: 256, cy: 256, R: 158, debut: -88, tour: 356, epais: 0.62 });
+  if (a) {
+    if (a.fill) AC.svg('path', { d: a.fill, fill: '#FFFFFF' }, g);
+    AC.svg('path', { d: a.lines, fill: '#111111', stroke: '#111111', 'stroke-width': trait, 'stroke-linejoin': 'round' }, g);
   }
   document.body.dataset.pret = '1';
 })();

@@ -68,11 +68,15 @@
   </defs></svg>`;
   const CHEVRON = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 
+  /** L'addition, dans le coin de la table : « Total : » et le prix (ce qui est servi reste dit aux lecteurs d'écran) */
   function legende() {
     const b = ITEMS[etat.boisson], g = etat.gateau ? ITEMS[etat.gateau] : null;
-    const nom = [b && b.nom, g && g.nom].filter(Boolean).join(' · ');
+    const nom = [b && b.nom, g && g.nom].filter(Boolean).join(', ');
     const total = (b ? b.prix || 0 : 0) + (g ? g.prix || 0 : 0);
-    $('#tg-legende').innerHTML = `<span class="tg-nom">${esc(nom)}</span><span class="tg-prix">${AC.prix(total)}</span>`;
+    const el = $('#tg-legende'), prix = AC.prix(total), avant = $('.tg-prix', el);
+    el.innerHTML = `<span class="visuellement-cache">Sur la table : ${esc(nom)}. </span><span class="tg-total">Total&#8239;:</span> <span class="tg-prix">${prix}</span>`;
+    // le prix change : il saute un peu
+    if (avant && avant.textContent !== prix && !AC.reduced) $('.tg-prix', el).animate([{ transform: 'scale(1.22)' }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.3,1.6,.5,1)' });
   }
 
   function fiche(c) {
@@ -155,6 +159,7 @@
         nuPage = (p, lisse = true) => {
           p = Math.max(0, Math.min(PAGES.length - 1, p));
           marque(p);
+          if (AC.view !== 'carte') return; // pas à l'écran : pas de mesure (on se place à l'ouverture de l'onglet)
           if (track.clientWidth) track.scrollTo({ left: p * track.clientWidth, behavior: lisse && !AC.reduced ? 'smooth' : 'auto' });
         };
         // au doigt : la page qui s'arrête au milieu devient la page courante
@@ -203,8 +208,12 @@
             a.classList.toggle('on', on);
           });
         };
-        sc.addEventListener('scroll', () => requestAnimationFrame(spy), { passive: true });
-        spy();
+        // (une mesure par image au plus ; et pas au démarrage : elle forcerait la mise en page de toute la page)
+        let spyRaf = 0;
+        const spyBientot = () => { if (!spyRaf) spyRaf = requestAnimationFrame(() => { spyRaf = 0; spy(); }); };
+        sc.addEventListener('scroll', spyBientot, { passive: true });
+        AC.on('view', (v) => { if (v === 'carte') spyBientot(); });
+        if (AC.view === 'carte') spyBientot();
       }
       // chaque ligne de la carte se sert sur la table
       $('#carte').addEventListener('click', (e) => {

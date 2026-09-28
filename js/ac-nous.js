@@ -1,5 +1,5 @@
 /* ==========================================================================
-   L'Armoire à Cuillères — l'accueil (ardoise, panneau « ICI », nuancier d'appel)
+   L'Armoire à Cuillères — l'accueil (l'ardoise et ses dessins à la craie, panneau « ICI »)
    et « Nous » (la pile de leurs posts Instagram), plus les bouquets de feuilles
    de la marque posés en décor.
    ========================================================================== */
@@ -40,6 +40,7 @@
     if (!host) return null;
     const B = AC.BRAND && AC.BRAND.feuilles && AC.BRAND.feuilles.items;
     const svg = AC.svg('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: '100%', preserveAspectRatio: par, 'aria-hidden': 'true' });
+    const feuilles = [];
     spec.forEach(([id, x, y, hh, rot], i) => {
       const leaf = B ? AC.feuille(id) : null;
       const g = AC.svg('g', { transform: `translate(${x} ${y}) rotate(${rot})` }, svg);
@@ -54,24 +55,55 @@
         AC.svg('path', { d: `M0 0C${-wd} ${-l * 0.3} ${-wd * 0.8} ${-l * 0.8} 0 ${-l}C${wd * 0.8} ${-l * 0.8} ${wd} ${-l * 0.3} 0 0Z`, fill: COULEURS[id] || '#3FC7EE' }, inner);
         if (id === 'turquoise' || id === 'aqua') AC.svg('path', { d: `M0 -2V${-l * 0.92}`, stroke: '#fff', 'stroke-width': 0.8, fill: 'none' }, inner);
       }
-      if (sway && !AC.reduced) {
-        inner.animate([{ transform: 'rotate(-2.5deg)' }, { transform: 'rotate(2.5deg)' }], { duration: 2800 + i * 430, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out', delay: -i * 700 });
-      }
+      feuilles.push(inner);
     });
     host.innerHTML = '';
     host.appendChild(svg);
+    // elles se balancent doucement, chacune à son rythme (pilotées par l'ambiance : seulement quand on les voit)
+    if (sway && !AC.reduced) AC.ambiance.balance(feuilles, host, { de: -2.5, a: 2.5, periode: (i) => 2800 + i * 430, decale: (i) => i * 700 });
     return svg;
   };
 
   /* ======================================================================
      Accueil
      ====================================================================== */
+  /* les petits dessins à la craie de l'ardoise (48 × 34), un par pâtisserie ; la craie : le filtre #craie */
+  const C = { brun: '#C99368', caramel: '#F2BE6E', noisette: '#E3B886', vert: '#BFE39A', citron: '#F6E27A', rose: '#F2B8C6' };
+  const ASSIETTE = '<path d="M4 29.5h40"/><path d="M9 31.6h30" stroke-width="1"/>';
+  const FONDANT = '<ellipse cx="24" cy="12" rx="14" ry="4.2"/><path d="M10 12v12.5c0 2.4 6.3 4.3 14 4.3s14-1.9 14-4.3V12"/>';
+  const DESSINS = {
+    'fondant-lait': ASSIETTE + FONDANT +
+      `<path d="M14 17l3 7M19 18l3 8M24 18.6l3 8M29 18.4l3 7.6M34 17.4l2.6 6" stroke="${C.brun}" stroke-width=".8"/>` +
+      `<path d="M11 13.4c1 3 2.2 4.6 3.2 1.4 1 4.6 2.2 5.4 3.4 1.2 1.2 3 2.2 3.4 3.4.8 1.2 4.2 2.4 4.8 3.6.8 1.2 2.6 2.4 3 3.6.6 1.2 3.6 2.2 4 3.2.4.8 1.6 1.6 1.6 2.4 0" stroke="${C.caramel}" stroke-width="1.5"/>`,
+    'fondant-noir': ASSIETTE + FONDANT +
+      '<path d="M13 16l4 9M17 17l4 9.6M21 17.6l4 9.6M25 17.8l4 9.4M29 17.6l4 9M33 17l3.4 7.6" stroke-width=".8"/>' +
+      '<path d="M36 16l-4 9M32 17.2l-4 9.6M28 17.8l-4 9.6M24 17.8l-4 9.6M20 17.4l-4 9M16 16.6l-3.2 7.4" stroke-width=".8"/>' +
+      '<path d="M16 10.6l1.4 1.2M17.4 10.6l-1.4 1.2M24 9.4l1.4 1.2M25.4 9.4l-1.4 1.2M30 11.6l1.2 1.2M31.2 11.6l-1.2 1.2M20 13l1 1M21 13l-1 1" stroke-width=".9"/>',
+    brownie: '<path d="M6 15.5L22 9l20 4.5-16 6.6z"/><path d="M6 15.5V26l20 6V20.1"/><path d="M26 32l16-6.4V13.5"/>' +
+      `<path d="M9 19l3 1M13 21l3 1M17 22.6l3 1M9 23.4l3 1M14 25l3 1M19 27l3 1M29 23l3-1.2M33 21.4l3-1.2M29 27l3-1.2M34 25l3-1.2" stroke="${C.brun}" stroke-width=".9"/>` +
+      `<g stroke="${C.noisette}"><ellipse cx="17" cy="12.6" rx="2.2" ry="1.3"/><ellipse cx="25" cy="14.8" rx="2.2" ry="1.3"/><ellipse cx="31" cy="11.8" rx="2" ry="1.2"/></g>`,
+    cheesecake: '<path d="M5 17L39 10.5V28H5z"/><path d="M5 24.5h34"/>' +
+      `<path d="M8 27l2-2.4M13 27l2-2.4M18 27l2-2.4M23 27l2-2.4M28 27l2-2.4M33 27l2-2.4" stroke="${C.noisette}" stroke-width=".9"/>` +
+      `<g stroke="${C.vert}"><circle cx="27" cy="9.4" r="5.2"/><path d="M27 4.2v10.4M21.8 9.4h10.4M23.3 5.7l7.4 7.4M30.7 5.7l-7.4 7.4" stroke-width=".8"/></g>`,
+    cookie: '<circle cx="17" cy="18" r="10"/><path d="M26.4 14.6A8.6 8.6 0 1 1 25.2 26"/>' +
+      `<g fill="${C.brun}" stroke="none"><circle cx="13" cy="14" r="1.5"/><circle cx="20" cy="16" r="1.3"/><circle cx="15" cy="22" r="1.5"/><circle cx="21" cy="23" r="1.1"/><circle cx="31" cy="18" r="1.3"/><circle cx="36" cy="22" r="1.4"/><circle cx="32" cy="25" r="1.1"/></g>` +
+      '<path d="M10 19l3 1.2M17 12l2.4 1M34 16.6l1.8 1.4" stroke-width=".8"/>',
+    'cake-marbre': '<path d="M4 28V16c0-4 7-6.5 14-6.5s14 2.5 14 6.5v12z"/><path d="M3 28h42"/><path d="M34.5 28V15.5h9V28"/>' +
+      `<path d="M36.8 19.4c1.6-1.6 4-1 4.2 1 .2 2-2.2 2.8-3.4 1.6-1-1 .2-2.2 1.2-1.6" stroke="${C.brun}" stroke-width="1"/>` +
+      `<path d="M8 17c3-2 6 1 9-1s6 1 8-1M9 22c3 1.4 6-1 9 .6s6 1 9-.4" stroke="${C.brun}" stroke-width="1"/>`,
+    'tarte-citron': '<path d="M5 26.5L40 20v8H5z"/>' +
+      `<path d="M5.5 25.8L39.6 19.6" stroke="${C.citron}" stroke-width="2.2"/>` +
+      '<path d="M7 24.6c1-3 2-4.2 3.2-6.4.6 2.2 1.4 3.4 2.4 5.2 1-3.2 2.2-5.2 3.4-7.6.6 2.4 1.4 3.8 2.4 5.8 1.2-3 2.2-5 3.4-7.4.6 2.2 1.4 3.6 2.4 5.4 1.2-3 2.2-4.8 3.4-7 .6 2 1.4 3.4 2.4 5 1-2.6 2-4.2 3.2-6.2.6 1.8 1.2 3 2 4.2"/>' +
+      `<path d="M8 28l1.6-1.6M14 28l1.6-1.6M20 28l1.6-1.6M26 28l1.6-1.6M32 28l1.6-1.6" stroke="${C.noisette}" stroke-width=".9"/>`,
+  };
+  const COEUR = `<path d="M24 26c-7-4.4-10-8.6-8-12.4 1.6-3 5.6-3 8 .2 2.4-3.2 6.4-3.2 8-.2 2 3.8-1 8-8 12.4z" stroke="${C.rose}"/>`;
+  const dessin = (id) => `<svg class="ardoise-dessin" viewBox="0 0 48 34" aria-hidden="true"><g filter="url(#craie)" fill="none" stroke="#F3F0E8" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${DESSINS[id] || COEUR}</g></svg>`;
   AC.accueil = {
     init() {
       // l'ardoise : chaque ligne sert le gâteau sur la table de la carte
       const ul = $('#ardoise-liste');
       if (ul && AC.ARDOISE) {
-        ul.innerHTML = AC.ARDOISE.items.map((it) => `<li><button type="button" data-sert="${it.sert}" data-sfx="chalk"><span>${esc(it.nom)}</span><span>${AC.prix(it.prix).replace(' €', '')}</span></button></li>`).join('');
+        ul.innerHTML = AC.ARDOISE.items.map((it) => `<li><button type="button" data-sert="${it.sert}" data-sfx="chalk">${dessin(it.sert)}<span class="ad-nom">${esc(it.nom)}</span><span class="ad-prix">${AC.prix(it.prix).replace(' €', '')}</span></button></li>`).join('');
         ul.addEventListener('click', (e) => {
           const b = e.target.closest('[data-sert]');
           if (!b) return;
@@ -81,9 +113,6 @@
         const sig = $('.ardoise-sign');
         if (sig) sig.textContent = AC.ARDOISE.signature;
       }
-      // le nuancier d'appel
-      const tn = $('#tc-nuancier');
-      if (tn) tn.innerHTML = AC.CRUS.map((c) => `<i style="background:${c.couleur}"></i>`).join('');
       AC.tasses($('#pied-tasses'), '#6A5850');
       AC.bouquet($('#pied-feuilles'), [['aqua', 60, 64, 58, -64], ['prune', 86, 64, 62, -18], ['turquoise', 100, 64, 56, 16], ['fuchsia', 92, 64, 50, 34], ['marine', 120, 64, 40, 62]], { w: 180, h: 64 });
       AC.bouquet($('#ab-feuilles'), [['turquoise', -4, 232, 92, 44], ['prune', -12, 236, 104, 64], ['aqua', 6, 240, 80, 84], ['fuchsia', 404, 234, 96, -48], ['marine', 414, 214, 70, -24], ['aqua', 396, 240, 82, -80]], { w: 400, h: 240, par: 'xMidYMax meet' });
@@ -99,12 +128,13 @@
       // le salon (ac-salon.js) : dessiné à la première visite de l'onglet, joué une fois, puis vivant ;
       // au premier plan, le comptoir et Mallo qui joue la comptine du fait-maison (ac-conte.js)
       const hostSalon = $('#scene-salon');
-      if (hostSalon && AC.Salon && AC.Salon.create) {
+      if (hostSalon) {
         let pret = null;
         const reveil = async () => {
           if (!pret) {
+            // (chargés à la demande : ils ne pèsent pas sur l'ouverture de l'accueil)
             // le cadrage suit l'écran (ac-conte.js) : le salon remplit le haut de l'onglet, la bulle sous Mallo
-            pret = AC.Salon.create(hostSalon, { cadre: '0 0 400 760' }).then((api) => {
+            pret = AC.charge(['ac-salon.js', 'ac-conte.js']).then(() => AC.Salon.create(hostSalon, { cadre: '0 0 400 760' })).then((api) => {
               try { AC.conte = AC.Conte ? AC.Conte.create(api, $('#conte')) : null; } catch (e) { console.warn('conte', e); }
               return api;
             }).catch((e) => { console.warn('salon', e); });

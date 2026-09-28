@@ -1299,11 +1299,11 @@
     /** La vapeur : trois volutes qui montent, se tordent et s'effacent */
     function steamLoop() {
       wisps.forEach((w, i) => {
-        running.add(w.animate([
+        running.add(AC.ambiance.anime(w.animate([
           { opacity: 0, transform: 'translate(0,3px) scale(.7,.75)' },
           { opacity: 0.6, offset: 0.3 },
           { opacity: 0, transform: `translate(${i % 2 ? 3 : -2.5}px,-15px) scale(1.2,1.3)` },
-        ], { duration: 2700 + i * 420, delay: i * 820, iterations: Infinity, easing: 'ease-out' }));
+        ], { duration: 2700 + i * 420, delay: i * 820, iterations: Infinity, easing: 'ease-out' }), host));
       });
     }
     function steamPuff() {
@@ -1477,13 +1477,13 @@
         alive = true;
         steamLoop();
         // la lumière respire (par petits paliers : presque rien à repeindre)
-        running.add(L.light.animate([{ opacity: 0.86 }, { opacity: 1 }], { duration: 3600, direction: 'alternate', iterations: Infinity, easing: 'steps(14, jump-none)' }));
-        running.add(room.appGlow.animate([{ opacity: 0.88 }, { opacity: 1 }], { duration: 2900, direction: 'alternate', iterations: Infinity, easing: 'steps(10, jump-none)' }));
-        running.add(lamp.swing.animate([{ transform: 'rotate(-.45deg)' }, { transform: 'rotate(.45deg)' }], { duration: 5400, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
+        running.add(AC.ambiance.anime(L.light.animate([{ opacity: 0.86 }, { opacity: 1 }], { duration: 3600, direction: 'alternate', iterations: Infinity, easing: 'steps(14, jump-none)' }), host));
+        running.add(AC.ambiance.anime(room.appGlow.animate([{ opacity: 0.88 }, { opacity: 1 }], { duration: 2900, direction: 'alternate', iterations: Infinity, easing: 'steps(10, jump-none)' }), host));
+        running.add(AC.ambiance.anime(lamp.swing.animate([{ transform: 'rotate(-.45deg)' }, { transform: 'rotate(.45deg)' }], { duration: 5400, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }), host));
         const loop = (fn, a, b) => later(a + Math.random() * (b - a), () => {
           if (!alive) return;
           if (!svg.isConnected) { loop(fn, a, b); return; }
-          if (!document.hidden) fn();
+          if (AC.ambiance.visible(host)) fn();
           loop(fn, a, b);
         });
         loop(turnPage, 9000, 15000);
