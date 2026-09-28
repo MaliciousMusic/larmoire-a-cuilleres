@@ -629,10 +629,26 @@
     let tour = 0, joue = false, courant = -1;
     const vivant = (id) => id === tour;
     const sfx = (n, o) => AC.sfx && AC.sfx.play(n, o || {});
-    const tw = (id, ms, fn, ease = AC.ease.inOutSine) => (vivant(id) ? AC.tween(ms, (e, p) => { if (vivant(id)) fn(e, p); }, ease) : Promise.resolve());
+    const enVue = () => !document.hidden && (!AC.view || AC.view === 'nous');
+    // un geste de Mallo (ms, fn(e, p)) : il s'arrête net quand on quitte l'onglet (plus rien à dessiner) et reprend là
+    // où il en était au retour
+    const tw = (id, ms, fn, ease = AC.ease.inOutSine) => (vivant(id) ? new Promise((fini) => {
+      let t = 0, der = -1;
+      const pas = (now) => {
+        if (!vivant(id)) return fini();
+        if (!enVue()) { der = -1; setTimeout(() => requestAnimationFrame(pas), 300); return; }
+        if (der >= 0) t += Math.min(now - der, 50);
+        der = now;
+        const p = Math.min(1, t / ms);
+        fn(ease(p), p);
+        if (p < 1) requestAnimationFrame(pas);
+        else fini();
+      };
+      requestAnimationFrame(pas);
+    }) : Promise.resolve());
     const attends = (id, ms) => (vivant(id) ? AC.wait(ms) : Promise.resolve());
     async function visible(id) {
-      while (vivant(id) && (document.hidden || (AC.view && AC.view !== 'nous'))) await AC.wait(300);
+      while (vivant(id) && !enVue()) await AC.wait(300);
     }
     // la main va en « to » ([x, y] ; un 3e nombre : l'avant-bras qui fuit vers le comptoir, 0 par défaut)
     function vers(id, sd, to, ms = 420, ease = AC.ease.inOutSine) {
@@ -904,7 +920,7 @@
         tete(id, -6, -1.5);
         await Promise.all([vers(id, 'L', [B[0] + 3, B[1] - 16], 380), bolCouleur(id, CONTENU.chantilly, CONTENU.choco, 380), tw(id, 380, (e) => { bol.pics.setAttribute('opacity', f(1 - e)); bol.spirale.setAttribute('opacity', f(e)); })]);
         sfx('stir', { n: 4, gain: 0.7 });
-        const rot = AC.reduced ? null : bol.spirale.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(540deg)' }], { duration: 1300, easing: 'linear' });
+        const rot = AC.reduced ? null : AC.ambiance.joue(bol.spirale.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(540deg)' }], { duration: 1300, easing: 'linear' }), cible);
         await Promise.all([tourne(id, 'L', [B[0], B[1] - 13], 9, 2.6, 3, 1300), bolCouleur(id, CONTENU.choco, CONTENU.ganache, 1300), tw(id, 1300, (e) => bol.spirale.setAttribute('opacity', f(1 - e)))]);
         if (rot) rot.cancel();
         await repos(id, 'L');
@@ -937,7 +953,8 @@
         outils.R.flamme.setAttribute('opacity', 1);
         sfx('fizz', { gain: 0.6 });
         sfx('fizz', { gain: 0.5, delay: 500 });
-        const fl = AC.reduced ? null : outils.R.flamme.animate([{ transform: 'translate(4px, 12.2px) rotate(-28deg) scale(1, 1)' }, { transform: 'translate(4px, 12.2px) rotate(-26deg) scale(.9, 1.12)' }], { duration: 90, iterations: Infinity, direction: 'alternate' });
+        // (la flamme sans fin : en pause avec le geste, quand on quitte l'onglet)
+        const fl = AC.reduced ? null : AC.ambiance.joue(outils.R.flamme.animate([{ transform: 'translate(4px, 12.2px) rotate(-28deg) scale(1, 1)' }, { transform: 'translate(4px, 12.2px) rotate(-26deg) scale(.9, 1.12)' }], { duration: 90, iterations: Infinity, direction: 'alternate' }), cible);
         await tw(id, 1100, (e) => {
           const x = CAKE.x + 16 - e * 32;
           main.R = [x + 6, CAKE.y - 24 + Math.sin(e * 9) * 0.8];
@@ -982,6 +999,23 @@
     }
 
     /* ---------- la lecture ---------- */
+    /* les calques : ce qui bouge (la bassine et le gâteau ; Mallo, ses bras, ses outils, la farine qui tombe) sur deux
+       couches, la façade du comptoir (l'étagère, le four) sur une troisième, fixe : à chaque image, seules les couches
+       qui bougent sont repeintes. (Après l'entrée animée du premier plan, que les calques ne suivraient pas.) */
+    let monde = null;
+    function calques() {
+      if (monde || !svg.getBoundingClientRect().width) return;
+      monde = AC.monde(svg);
+      const dyn1 = G(root), dyn2 = G(root);
+      root.insertBefore(dyn1, L.bol);
+      [L.bol, L.outilsL, L.bolAvant, L.gateau].forEach((g) => dyn1.appendChild(g));
+      root.insertBefore(dyn2, L.outilsR);
+      [L.outilsR, L.avant, L.torse, L.tete, L.bras, L.fx, L.coeurs].forEach((g) => dyn2.appendChild(g));
+      monde.calque(dyn1, { marge: 40, fige: true });
+      monde.calque(L.face, { marge: 4 });
+      monde.calque(dyn2, { marge: 60, fige: true });
+    }
+
     async function jouer() {
       const id = ++tour;
       joue = true;
@@ -989,6 +1023,7 @@
       etat(false);
       if (AC.reduced) { etat(true); joue = false; return; }
       await visible(id);
+      calques();
       await attends(id, 250);
       if (!vivant(id)) return;
       ouvre(true); // la bulle s'ouvre : elle va parler
@@ -1017,7 +1052,7 @@
     dessine();
     /** Le premier plan arrive pendant que le salon se construit (le comptoir monte, Mallo avec) */
     function entree(delay = 1500) {
-      if (AC.reduced) return;
+      if (AC.reduced || monde) return; // (une fois sur ses calques, le premier plan ne refait pas son entrée)
       entre.animate([{ transform: 'translateY(40px)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 750, delay, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
     }
     return {

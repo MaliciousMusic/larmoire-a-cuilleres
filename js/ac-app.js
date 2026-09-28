@@ -47,14 +47,25 @@
     else route(false);
   };
 
-  let reposT = 0;
+  // Les onglets quittés s'endorment une fois sortis (.dort : content-visibility: hidden) : ils gardent leur mise en page
+  // et leur état, mais ne sont plus peints, ni comptés à chaque image (sinon chaque image du téléphone traite aussi
+  // les couches de tous les onglets cachés) ; leur contenu n'est plus atteignable (focus, lecteurs d'écran). L'onglet
+  // ouvert passe au-dessus des autres (z-index) : lui seul reçoit les touchers. (inert faisait tout cela, mais
+  // recalculait le style de tout l'onglet à chaque changement d'onglet : cher, sur un dessin de milliers d'éléments)
+  const sommeil = new Map();
+  AC.endors = function (v, ms = 0) {
+    clearTimeout(sommeil.get(v));
+    sommeil.set(v, setTimeout(() => { sommeil.delete(v); if (!v.classList.contains('is-active')) v.classList.add('dort'); }, ms));
+  };
+  const reveille = (v) => { clearTimeout(sommeil.get(v)); sommeil.delete(v); v.classList.remove('dort'); };
+
   function show(view, first) {
     if (view === current) return;
     const iNew = VIEWS.indexOf(view), iOld = VIEWS.indexOf(current);
     $$('.view').forEach((v) => {
       const i = VIEWS.indexOf(v.dataset.view);
-      const on = v.dataset.view === view;
-      if (on) v.classList.remove('repos');
+      const on = v.dataset.view === view, etait = v.classList.contains('is-active');
+      if (on) reveille(v);
       if (on && !v.classList.contains('vue')) {
         v.classList.add('vue');
         v.classList.toggle('is-left', i < iOld);
@@ -63,7 +74,7 @@
       v.classList.toggle('is-active', on);
       v.classList.toggle('is-left', !on && i < iNew);
       v.setAttribute('aria-hidden', String(!on));
-      if ('inert' in v) v.inert = !on;
+      if (etait && !on) AC.endors(v, 450); // (après son fondu : .38 s)
     });
     $$('#tabbar .tab').forEach((t) => {
       const on = t.dataset.tab === view;
@@ -72,9 +83,8 @@
     });
     current = view;
     AC.view = view;
-    // les onglets quittés, leur transition finie, ne se dessinent plus (ils gardent leur état et leur défilement)
-    clearTimeout(reposT);
-    reposT = setTimeout(() => $$('.view.vue:not(.is-active)').forEach((v) => v.classList.add('repos')), 450);
+    // (les onglets quittés dorment, avec leur mise en page : y revenir coûte peu ; leurs animations sont en pause,
+    // AC.ambiance)
     AC.emit('view', view);
   }
 
@@ -164,9 +174,9 @@
     const st = AC.statut();
     const now = AC.parisNow(), j = now.getDay();
     const plage = AC.HOURS.semaine[j];
-    $('#cj-etat').textContent = st.ouvert ? 'Ouvert aujourd’hui' : plage ? 'Aujourd’hui' : 'Fermé aujourd’hui';
+    $('#cj-etat').textContent = AC.t(st.ouvert ? 'Ouvert aujourd’hui' : plage ? 'Aujourd’hui' : 'Fermé aujourd’hui');
     $('#carte-jour').classList.toggle('ouvert', !!st.ouvert);
-    $('#cj-heures').textContent = plage ? AC.fmtH(plage[0]) + ' – ' + AC.fmtH(plage[1]) : st.texte.replace('Fermé · ', '');
+    $('#cj-heures').textContent = plage ? AC.fmtH(plage[0]) + ' – ' + AC.fmtH(plage[1]) : st.quand ? AC.t('ouvre {quand}', { quand: st.quand }) : AC.t('Fermé');
     $$('#horaires-table tr').forEach((tr) => tr.classList.toggle('auj', +tr.dataset.j === j));
     if (facade) facade.setStatus(st);
     return st;
@@ -193,8 +203,8 @@
   function semaineTexte() {
     return [2, 3, 4, 5, 6, 0, 1].map((d) => {
       const pl = AC.HOURS.semaine[d];
-      return AC.JOURS[d] + ' ' + (pl ? AC.fmtH(pl[0]) + ' – ' + AC.fmtH(pl[1]) + (d === 0 ? ', brunch dès 11h30' : '') : 'fermé');
-    }).join(' ; ');
+      return AC.JOURS[d] + ' ' + (pl ? AC.fmtH(pl[0]) + ' – ' + AC.fmtH(pl[1]) + (d === 0 ? AC.t(', brunch dès {h}', { h: AC.fmtH(AC.HOURS.brunch.debut) }) : '') : AC.t('fermé'));
+    }).join(AC.en ? '; ' : ' ; ');
   }
   async function vitre(on) {
     if (!facade || on === vitreOn) return;
@@ -202,7 +212,7 @@
     const scene = $('#scene-facade'), voile = $('#scene-vitre');
     if (on) {
       $('#sv-etat').textContent = AC.statut().texte;
-      $('#sv-semaine').textContent = '. Horaires : ' + semaineTexte() + '.';
+      $('#sv-semaine').textContent = AC.t('. Horaires : {semaine}.', { semaine: semaineTexte() });
       voile.hidden = false;
       scene.classList.add('zoom');
       AC.sfx.play('open');
@@ -251,7 +261,7 @@
     on(T.door, async () => {
       const ouvert = AC.statut().ouvert;
       await facade.knock();
-      AC.toast(ouvert ? 'Entrez, installez-vous !' : 'C’est fermé pour l’instant… mais entrez voir le salon.');
+      AC.toast(AC.t(ouvert ? 'Entrez, installez-vous !' : 'C’est fermé pour l’instant… mais entrez voir le salon.'));
       setTimeout(() => AC.go('nous'), 250);
       setTimeout(() => facade.closeDoor(700), 1500);
     });
@@ -264,10 +274,34 @@
     on(T.slate, () => { AC.sfx.play('chalk'); AC.scrollTo($('#ardoise')); });
     on(T.window, () => vitre(true));
     on(T.vitrine, () => { AC.sfx.play('clink'); AC.go('carte'); setTimeout(() => { const g = $('#r-gateaux'); g && AC.scrollTo(g); }, 450); });
-    on(T.flag, () => { AC.sfx.play('sign'); T.flag.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(12deg)' }, { transform: 'rotate(-8deg)' }, { transform: 'rotate(4deg)' }, { transform: 'rotate(0)' }], { duration: 1400, easing: 'ease-out', composite: 'add' }); });
+    // la plaque se balance (sur son calque, une fois la vie ambiante lancée : le compositeur ajoute ce coup au balancement)
+    on(T.flag, () => { AC.sfx.play('sign'); (T.flagCalque || T.flag).animate([{ transform: 'rotate(0)' }, { transform: 'rotate(12deg)' }, { transform: 'rotate(-8deg)' }, { transform: 'rotate(4deg)' }, { transform: 'rotate(0)' }], { duration: 1400, easing: 'ease-out', composite: 'add' }); });
     on(T.cup, () => { AC.sfx.play('clink'); AC.sfx.play('steam', { delay: 200 }); });
     (T.houses || []).forEach((h, i) => on(h, () => facade.bird(i)));
     return facade;
+  }
+
+  /* ---------- la langue : le petit menu en haut à gauche de l'accueil (Français / English) ---------- */
+  function initLangue() {
+    const box = $('#langue'), btn = $('#langue-bouton'), menu = $('#langue-menu');
+    if (!box || !btn || !menu) return;
+    $('.langue-code', btn).textContent = AC.lang.toUpperCase();
+    btn.setAttribute('aria-label', AC.en ? 'Language: English' : 'Langue : français');
+    $$('[data-lang]', menu).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.lang === AC.lang)));
+    const ouvre = (on) => {
+      menu.hidden = !on;
+      btn.setAttribute('aria-expanded', String(on));
+    };
+    btn.addEventListener('click', (e) => { e.stopPropagation(); ouvre(menu.hidden); });
+    menu.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-lang]');
+      if (!b) return;
+      ouvre(false);
+      if (b.dataset.lang !== AC.lang) AC.choisirLangue(b.dataset.lang);
+    });
+    document.addEventListener('click', (e) => { if (!menu.hidden && !box.contains(e.target)) ouvre(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { ouvre(false); btn.focus(); } });
+    AC.on('view', () => ouvre(false));
   }
 
   /* ---------- l'astuce de la scène, qui s'efface ---------- */
@@ -352,7 +386,17 @@
       const mq = matchMedia(VITRINE), change = () => { if (mq.matches !== html.classList.contains('mode-vitrine')) location.reload(); };
       if (mq.addEventListener) mq.addEventListener('change', change); else if (mq.addListener) mq.addListener(change);
     }
+    // la langue change dans le téléphone de la vitrine (ou dans un autre onglet) : on suit
+    // (un ?lang= de l'adresse passerait devant ce choix : on le retire)
+    addEventListener('storage', (e) => {
+      try {
+        if (e.key !== 'ac:lang' || !e.newValue || JSON.parse(e.newValue) === AC.lang) return;
+        const params = location.search.slice(1).split('&').filter((x) => x && !/^lang=/.test(x));
+        location.replace(location.pathname + (params.length ? '?' + params.join('&') : '') + location.hash);
+      } catch (x) { /* valeur illisible */ }
+    });
     if (html.classList.contains('mode-vitrine')) { initVitrine(); return; }
+    initLangue();
     initSound();
     initSheets();
     initTabs();
@@ -371,13 +415,27 @@
     ['logo', 'nous', 'accueil'].forEach(initMod);
     AC.on('view', (v) => { if (TARD.includes(v)) initMod(v); });
     if (TARD.includes(current)) initMod(current);
-    const ric = window.requestIdleCallback || ((cb) => setTimeout(cb, 200));
+    const ric = (cb, o) => AC.ric(cb, o); // (Safari : un moment sans toucher ni défilement, voir ac-core.js)
     const tempsMort = () => {
       const m = TARD.find((x) => !faits.has(x));
       if (m) { initMod(m); ric(tempsMort, { timeout: 2500 }); return; }
       if (AC.table) AC.table.prechauffer(); // la table de la carte se prépare (dans l'atelier)
       // le salon, la comptine et la tablée : chargés d'avance, pour que leurs onglets s'ouvrent tout de suite
-      ric(() => AC.charge(['ac-salon.js', 'ac-conte.js', 'ac-tablee.js']).catch(() => {}), { timeout: 4000 });
+      ric(() => AC.charge(['ac-salon.js', 'ac-conte.js', 'ac-tablee.js']).catch(() => {}).then(() => ric(prechauffe, { timeout: 3000 })), { timeout: 4000 });
+    };
+    // puis les onglets pas encore ouverts se préparent, un par temps mort : affichés mais invisibles (leur mise en
+    // page et leur scène — la tablée, le salon — se font maintenant, pas au premier toucher ; la scène joue son
+    // entrée à la première visite), puis ils s'endorment (AC.endors). Leurs animations restent en pause (AC.ambiance).
+    const aPreparer = ['carte', 'brunch', 'nous', 'fidelite', 'accueil'];
+    const prechauffe = () => {
+      let v;
+      while ((v = aPreparer.shift()) && (v === current || document.getElementById(v).classList.contains('vue')));
+      if (!v) return;
+      initMod(v === 'accueil' ? 'accueil' : v);
+      const el = document.getElementById(v);
+      el.classList.add('vue');
+      AC.emit('prechauffe', v);
+      ric(() => { if (!el.classList.contains('is-active')) AC.endors(el, 400); prechauffe(); }, { timeout: 3000 });
     };
     const fac = initFacade();
     initVitre();

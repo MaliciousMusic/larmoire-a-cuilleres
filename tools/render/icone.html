@@ -2,23 +2,37 @@
 <html lang="fr"><head><meta charset="utf-8">
 <style> html, body { margin: 0; background: transparent; } #ic { width: 512px; height: 512px; display: block; } </style></head>
 <body><svg id="ic" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"></svg>
-<script src="../../js/ac-core.js"></script><script src="../../js/ac-brand.js"></script><script src="cuillere-anneau.js"></script>
+<script src="../../js/ac-core.js"></script><script src="../../js/ac-brand.js"></script>
 <script>
-// L'icône d'appli : leur cuillère ciselée (celle du logo), pliée en cercle comme une bague-cuillère,
-// au trait noir sur fond blanc (le cuilleron et le haut du manche se rejoignent en haut).
-// ?k=0.8 : version « maskable » (tout dans le cercle de sécurité d'Android) ; ?trait= : épaissit le trait
-// (le petit favicon en a besoin).
+// L'icône d'appli : quatre de leurs cuillères anciennes (celles du râtelier, AC.BRAND.cuilleres), côte à côte,
+// accrochées à la même hauteur, au trait noir sur fond blanc.
+// ?k=0.74 : version « maskable » (tout dans le cercle de sécurité d'Android) ; ?trait= : épaissit le trait ;
+// ?plein=1 : leurs silhouettes pleines (le petit favicon de l'onglet : le trait fin y disparaît).
 (() => {
   const q = new URLSearchParams(location.search);
-  const k = +(q.get('k') || 1), trait = +(q.get('trait') || 2.8);
+  const k = +(q.get('k') || 1), trait = +(q.get('trait') || 1.2), plein = q.get('plein') === '1';
+  const CHOIX = [2, 3, 6, 7]; // la ciselée ajourée, la nouée, la toute simple, la torsadée à rosace
+  const HAUT = 0.78, ECART = 20; // la plus longue : 78 % de l'icône ; l'espace entre deux cuillères
   const svg = document.getElementById('ic');
   AC.svg('rect', { width: 512, height: 512, fill: '#FFFFFF' }, svg);
+  const R = AC.BRAND.cuilleres, S = CHOIX.map((i) => R[i]);
+  const H = Math.max(...S.map((c) => c.bbox[3] - c.hook[1]));
+  const e = (512 * HAUT) / H; // unités de l'icône par unité du râtelier
+  const larg = S.map((c) => (c.bbox[2] - c.bbox[0]) * e);
+  const total = larg.reduce((a, b) => a + b, 0) + (S.length - 1) * ECART;
   const g = AC.svg('g', { transform: `translate(256 256) scale(${k}) translate(-256 -256)` }, svg);
-  const a = AC.cuillereAnneau({ cx: 256, cy: 256, R: 158, debut: -88, tour: 356, epais: 0.62 });
-  if (a) {
-    if (a.fill) AC.svg('path', { d: a.fill, fill: '#FFFFFF' }, g);
-    AC.svg('path', { d: a.lines, fill: '#111111', stroke: '#111111', 'stroke-width': trait, 'stroke-linejoin': 'round' }, g);
-  }
+  const haut = 256 - (H * e) / 2; // les crochets alignés, l'ensemble centré
+  let x = 256 - total / 2;
+  S.forEach((c, i) => {
+    const gi = AC.svg('g', { transform: `translate(${x + (c.hook[0] - c.bbox[0]) * e} ${haut}) scale(${e}) translate(${-c.hook[0]} ${-c.hook[1]})` }, g);
+    const t = { stroke: '#111111', 'stroke-width': trait / e, 'stroke-linejoin': 'round' };
+    if (plein) AC.svg('path', { d: c.fill, fill: '#111111', ...t }, gi);
+    else {
+      AC.svg('path', { d: c.fill, fill: '#FFFFFF' }, gi);
+      AC.svg('path', { d: c.lines, fill: '#111111', ...t }, gi);
+    }
+    x += larg[i] + ECART;
+  });
   document.body.dataset.pret = '1';
 })();
 </script></body></html>

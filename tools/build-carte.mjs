@@ -127,7 +127,8 @@ function llms() {
   lines.push(`- E-mail : ${S.email}`);
   lines.push(`- Instagram : ${S.instagram}`);
   lines.push(`- Note Google : ${String(S.avis.note).replace('.', ',')}/5 (${S.avis.nombre} avis, sept. 2026)`);
-  lines.push('- Pas de réservation pour le goûter ; réservation conseillée pour le brunch (places limitées).');
+  lines.push('- Pas de réservation pour le goûter ; réservation conseillée pour le brunch (places limitées, par téléphone au-delà de 6 personnes).');
+  lines.push('- Site en français et en anglais (English version: ?lang=en).');
   lines.push('');
   lines.push('## Horaires');
   lines.push(hours);

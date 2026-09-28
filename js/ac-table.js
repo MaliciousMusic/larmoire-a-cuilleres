@@ -43,7 +43,7 @@
     let file = Promise.resolve();
     const calculeIci = (op, args, tranquille) => (file = file.then(() => surPlace()).then((L) => new Promise((ok, ko) => {
       const go = () => { try { ok(L.traite(op, args)); } catch (e) { ko(e); } };
-      if (tranquille) (window.requestIdleCallback || ((f) => setTimeout(f, 60)))(go, { timeout: 1500 }); else go();
+      if (tranquille) AC.ric(go, { timeout: 1500 }); else go();
     })));
     function abandon() {
       if (w) { try { w.terminate(); } catch (e) { /* déjà fini */ } }
@@ -234,23 +234,29 @@
     raf = requestAnimationFrame(step);
   }
 
-  /* ---------- la vapeur (SVG par-dessus le canvas) ---------- */
+  /* ---------- la vapeur, par-dessus le canvas : quatre volutes floutées, chacune sur son propre <svg> (un calque :
+     le compositeur l'anime, le flou n'est calculé qu'une fois), dans un groupe posé sur la tasse ---------- */
   let steamG = null;
   function buildSteam() {
     vie.innerHTML = '';
-    const svg = AC.svg('svg', { viewBox: `0 0 ${size.w} ${size.h}`, preserveAspectRatio: 'none' }, vie);
-    const f = AC.uid('bl');
-    const flt = AC.svg('filter', { id: f, x: '-50%', y: '-50%', width: '200%', height: '200%' }, AC.svg('defs', {}, svg));
-    AC.svg('feGaussianBlur', { stdDeviation: 2.2 }, flt);
-    steamG = AC.svg('g', { class: 'tg-vapeur', filter: `url(#${f})`, opacity: 0 }, svg);
+    steamG = document.createElement('div');
+    steamG.className = 'tg-vapeur';
+    steamG.style.display = 'none'; // (jusqu'à ce qu'une tasse chaude soit posée : steamPlace)
+    vie.appendChild(steamG);
+    const fid = AC.uid('bl');
     for (let k = 0; k < 4; k++) {
-      const w = AC.svg('path', { d: `M${k * 9 - 13} 0c-8 -14 8 -22 0 -36s8 -22 0 -36`, fill: 'none', stroke: '#fff', 'stroke-width': 5, 'stroke-linecap': 'round', opacity: 0 }, steamG);
-      if (!AC.reduced) AC.ambiance.anime(w.animate([
-        { opacity: 0, transform: 'translate(0,6px) scale(.7,.8)' },
+      const svg = AC.svg('svg', { class: 'tg-volute', viewBox: '-40 -84 80 96', width: 80, height: 96, 'aria-hidden': 'true' }, steamG);
+      const flt = AC.svg('filter', { id: fid + k, x: '-50%', y: '-50%', width: '200%', height: '200%' }, AC.svg('defs', {}, svg));
+      AC.svg('feGaussianBlur', { stdDeviation: 2.2 }, flt);
+      AC.svg('path', { d: `M${k * 9 - 13} 0c-8 -14 8 -22 0 -36s8 -22 0 -36`, fill: 'none', stroke: '#fff', 'stroke-width': 5, 'stroke-linecap': 'round', filter: `url(#${fid + k})` }, svg);
+      // (la scène de ces animations : le groupe lui-même. Caché (boisson froide), il sort de l'écran pour l'ambiance, qui
+      // les met en pause : une animation qui ne se voit pas, Chrome la ferait tourner sur le fil principal)
+      if (!AC.reduced) AC.ambiance.joue(svg.animate([
+        { opacity: 0, transform: 'translate(0px, 6px) scale(.7, .8)' },
         { opacity: 0.42, offset: 0.35 },
-        { opacity: 0, transform: `translate(${k % 2 ? 7 : -6}px,-38px) scale(1.25,1.3)` },
-      ], { duration: 2800 + k * 380, delay: k * 650, iterations: Infinity, easing: 'ease-out' }), host);
-      else w.setAttribute('opacity', 0.25);
+        { opacity: 0, transform: `translate(${k % 2 ? 7 : -6}px, -38px) scale(1.25, 1.3)` },
+      ], { duration: 2800 + k * 380, delay: k * 650, iterations: Infinity, easing: 'ease-out', fill: 'backwards' }), steamG);
+      else svg.style.opacity = 0.25;
     }
   }
   function steamPlace() {
@@ -261,9 +267,8 @@
     if (inn && inn.cx != null) { cx += inn.cx - sp.ax; cy += inn.cy - sp.ay; }
     else cy -= 8;
     const k = size.ppm / size.dpr; // px CSS par mm
-    steamG.setAttribute('transform', `translate(${(cx * k).toFixed(1)} ${(cy * k).toFixed(1)}) scale(${Math.max(0.7, k * 1.1).toFixed(2)})`);
-    steamG.style.transition = 'opacity .8s ease';
-    steamG.style.opacity = S.boisson.froid || !sp ? '0' : '1';
+    steamG.style.transform = `translate(${(cx * k).toFixed(1)}px, ${(cy * k).toFixed(1)}px) scale(${Math.max(0.7, k * 1.1).toFixed(2)})`;
+    steamG.style.display = S.boisson.froid || !sp ? 'none' : '';
   }
 
   /* ======================================================================

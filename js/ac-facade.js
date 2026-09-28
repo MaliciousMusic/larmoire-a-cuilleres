@@ -6,6 +6,9 @@
    « ICI ON… », enseigne drapeau aux cuillères, terrasse de chaises pliantes pastel.
    Le décor déborde du cadre (écrans larges). Les calques :
      monde (mur, bois, rue) → voile du soir → intérieurs éclairés → reflets → vie (oiseaux, vapeur)
+   Tout ce qui bouge sans fin (rameaux, plaque, pots, vapeur, poussières dorées, reflet, oiseaux) sort sur son
+   propre calque (AC.monde, dans ac-core.js) : le compositeur l'anime à 60 images/s et le grand dessin n'est plus
+   repeint (seule la porte, quand elle bouge, le repeint encore un instant).
    ========================================================================== */
 (function () {
   'use strict';
@@ -124,7 +127,7 @@
     try { await Promise.race([document.fonts.load("40px 'Armoire Lettres'"), AC.wait(1500)]); } catch (e) { /* police absente : repli */ }
     try { await Promise.race([Promise.all([document.fonts.load("20px 'Playfair Display'"), document.fonts.load("600 10px 'Poppins'"), document.fonts.load("700 10px 'Poppins'")]), AC.wait(1200)]); } catch (e) { /* idem */ }
     const R = AC.rng(opts.seed || 11);
-    const svg = S('svg', { viewBox: '0 0 400 560', class: 'facade', preserveAspectRatio: 'xMidYMax slice', role: 'img', 'aria-label': "La devanture de L'Armoire à Cuillères, rue des Chaussetiers" });
+    const svg = S('svg', { viewBox: '0 0 400 560', class: 'facade', preserveAspectRatio: 'xMidYMax slice', role: 'img', 'aria-label': AC.t("La devanture de L'Armoire à Cuillères, rue des Chaussetiers") });
     svg.style.overflow = 'visible';
     // cadrage : toute la hauteur, toujours (écran haut : on rogne les côtés ; écran court : le mur et la rue,
     // dessinés bien au-delà du cadre, débordent sur les côtés au lieu de rogner la corniche et les nichoirs)
@@ -152,12 +155,13 @@
       S('filter', { id: nuitId, x: '-10%', y: '-10%', width: '120%', height: '120%', 'color-interpolation-filters': 'sRGB' }, defs));
     const VOILE = [0x10 / 255, 0x1a / 255, 0x36 / 255]; // le bleu nuit du voile de la rue
     let voileK = 0, voileTour = 0;
+    const voilables = []; // les calques sortis du monde (rameaux, plaque…) ou de la terrasse : au-dessus du voile de la rue
     /** Le voile du soir sur la terrasse : ses couleurs mélangées au bleu nuit, comme sous le voile de la rue */
     function voile(k) {
       voileK = k;
       const a = (1 - k).toFixed(4), c = VOILE.map((v) => (v * k).toFixed(4));
       nuitM.setAttribute('values', `${a} 0 0 0 ${c[0]} 0 ${a} 0 0 ${c[1]} 0 0 ${a} 0 ${c[2]} 0 0 0 1 0`);
-      if (k > 0.002) front.setAttribute('filter', `url(#${nuitId})`); else front.removeAttribute('filter');
+      [front, ...voilables].forEach((g) => (k > 0.002 ? g.setAttribute('filter', `url(#${nuitId})`) : g.removeAttribute('filter')));
     }
     const hit = S('g', { class: 'fa-hits' }, svg); // zones à toucher, au-dessus de tout
 
@@ -346,8 +350,8 @@
       for (let k = 0; k <= 8; k++) pts.push([gx + (R() - 0.5) * 1.8, 200 + (262 * k) / 8]);
       piece(leaf, 'none', () => 'M' + pts.map(([x, y]) => pt(x, y)).join('L'), { stroke: R() > 0.5 ? '#6E5248' : '#1B100D', 'stroke-width': f(0.35 + R() * 0.5), opacity: 0.12 });
     }
-    piece(leaf, '#1C110E', () => quadD(163, 208, 74, 150));
-    piece(leaf, P.glassDark, () => quadD(165, 210, 70, 146));
+    const bordVitre = piece(leaf, '#1C110E', () => quadD(163, 208, 74, 150));
+    const vitrePiece = piece(leaf, P.glassDark, () => quadD(165, 210, 70, 146));
     { // le panneau mouluré du bas
       const x0 = 169, y0 = 372, x1 = 231, y1 = 450, b = 3;
       piece(leaf, P.woodDark, () => quadD(x0 - 1.2, y0 - 1.2, x1 - x0 + 2.4, y1 - y0 + 2.4), { opacity: 0.55 });
@@ -424,17 +428,21 @@
     const vinL = S('g', { 'clip-path': `url(#${clipL})` }, vinyl);
     const hor = S('g', { class: 'fa-horaires', fill: '#F6F1E8', 'font-family': FONT_SERIF }, vinL);
     const GOLD = '#EBC877';
-    const horGrad = S('linearGradient', { id: U('hg'), gradientUnits: 'userSpaceOnUse', x1: -300, y1: 311, x2: -283.7, y2: 316.3 }, defs);
-    [[0, GOLD], [0.28, '#FFF1C4'], [0.5, '#FFFFFF'], [0.72, '#FFF1C4'], [1, GOLD]].forEach(([o, c]) => S('stop', { offset: o, 'stop-color': c }, horGrad));
+    const horGrad = S('linearGradient', { id: U('hg'), x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+    [[0, '#FFF1C4'], [0.5, '#FFFFFF'], [1, '#FFF1C4']].forEach(([o, c]) => S('stop', { offset: o, 'stop-color': c }, horGrad));
     S('ellipse', { cx: 104, cy: 313.5, rx: 34, ry: 8.5, fill: rad(defs, U('hh'), [[0, '#FFD98A', 0.32], [1, '#FFD98A', 0]]) }, hor);
-    S('text', { x: 104, y: 317.5, 'text-anchor': 'middle', 'font-size': 9.4, 'font-weight': 700, 'letter-spacing': 0.5, fill: `url(#${horGrad.id})`, stroke: '#3A2416', 'stroke-width': 0.45, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, hor).textContent = 'HORAIRES';
+    const MOT_HORAIRES = { x: 104, y: 317.5, 'text-anchor': 'middle', 'font-size': 9.4, 'font-weight': 700, 'letter-spacing': 0.5, stroke: '#3A2416', 'stroke-width': 0.45, 'paint-order': 'stroke', 'stroke-linejoin': 'round' };
+    S('text', { ...MOT_HORAIRES, fill: GOLD }, hor).textContent = AC.t('HORAIRES');
+    // sa copie allumée (blanc et or pâle), que le reflet découvre en passant (sortie sur un calque dans idle)
+    const horLum = S('text', { ...MOT_HORAIRES, fill: `url(#${horGrad.id})`, stroke: 'none', opacity: 0 }, hor);
+    horLum.textContent = AC.t('HORAIRES');
     ctx2d.font = `700 9.4px ${FONT_SERIF}`;
-    const horW = ctx2d.measureText('HORAIRES').width + 7 * 0.5;
+    const horW = ctx2d.measureText(AC.t('HORAIRES')).width + (AC.t('HORAIRES').length - 1) * 0.5;
     const sparkle = S('g', { transform: `translate(${f(104 + horW / 2 + 0.5)} 310.5)`, 'pointer-events': 'none' }, hor);
     const sparkleIn = S('g', { transform: 'scale(0)' }, sparkle);
     path(sparkleIn, 'M0 -3.4L.7 -.7L3.4 0L.7 .7L0 3.4L-.7 .7L-3.4 0L-.7 -.7Z', '#FFF8DC');
     rect(hor, 76, 321.5, 56, 0.5, GOLD);
-    const jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+    const jours = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].map((j) => AC.t(j));
     const horRows = [];
     jours.forEach((j, i) => {
       const y = 328 + i * 5.2;
@@ -507,7 +515,7 @@
     path(sign, 'M189 288L200 281L211 288', 'none', { stroke: '#D9C9A8', 'stroke-width': 0.6 });
     rect(sign, 184, 288, 32, 14, '#F4ECDC', { rx: 1.6, stroke: '#8C6A4E', 'stroke-width': 0.7 });
     const signTxt = S('text', { x: 200, y: 298, 'text-anchor': 'middle', 'font-family': FONT_LETTRES, 'font-size': 7.6, fill: P.teal }, sign);
-    signTxt.textContent = 'OUVERT';
+    signTxt.textContent = AC.t('OUVERT');
     path(onGlass, 'M172 356L214 210L226 210L184 356Z', '#fff', { opacity: 0.07, class: 'fa-reflet' });
     // le chant du vantail, éclairé par la salle
     const rim = path(litDoor, '', 'none', { stroke: '#FFD98E', 'stroke-width': 1.3, 'stroke-linecap': 'round', opacity: 0.75, 'pointer-events': 'none' });
@@ -575,6 +583,7 @@
     const sheen = S('g', { class: 'fa-sheen', 'clip-path': `url(#${clipGlass})` }, glassFx);
     const band = S('g', { transform: 'translate(-60 0)', opacity: 0 }, sheen);
     rect(band, 60, 150, 18, 260, '#fff', { opacity: 0.2, transform: 'skewX(-18)' });
+    const glassQuad = () => quadD(165, 210, 70, 146);
 
     // la lumière de la porte : sur le trottoir, en halo autour de l'entrebâillement, et quelques poussières dorées
     const spillG = S('g', { style: 'mix-blend-mode: screen' }, spill);
@@ -588,34 +597,72 @@
       moteEls.push(S('circle', { cx: f(inGap ? 158 + R() * 14 : 128 + R() * 50), cy: f(inGap ? 370 + R() * 80 : 470 + R() * 50), r: f(0.5 + R() * 0.6), fill: '#FFF2CC', opacity: 0 }, motes));
     }
     let glowK = 1;
-    function layoutDoor() {
-      LP.forEach(([el, fn]) => el.setAttribute('d', fn()));
-      LT.forEach(([el, cx, cy]) => el.setAttribute('transform', affine(cx, cy)));
+    let porte = null; // le vantail sur son calque 3D, une fois la vie ambiante lancée (voir porte3d)
+    /** la lumière de la salle qui sort par l'entrebâillement : sur le trottoir, en halo, dans les poussières */
+    function layoutLumiere() {
       const s = Math.sin(theta), L = s / Math.sin(WIDE); // la part de lumière qui sort : 0 fermée, 1 grande ouverte
-      leafShade.setAttribute('opacity', (0.04 + 0.3 * s).toFixed(3));
-      const tl = proj(155, 200), bl = proj(155, 462);
-      const glassQ = quadD(165, 210, 70, 146);
-      clipDoorP.setAttribute('d', `M155 200H245L${f(tl[0])} ${f(tl[1])}L${f(bl[0])} ${f(bl[1])}L245 462H155Z` + glassQ);
-      glassClipP.setAttribute('d', glassQ);
-      sheenDoorP.setAttribute('d', glassQ);
-      doorTint.setAttribute('d', glassQ);
-      rim.setAttribute('d', theta > 0.02 ? `M${f(tl[0])} ${f(tl[1] + 1)}L${f(bl[0])} ${f(bl[1] - 1)}` : '');
-      const lx = bl[0];
+      const lx = proj(155, 462)[0];
       spillP.setAttribute('d', theta > 0.02 ? `M154 463L${f(lx + 1)} 463L${f(lx - 8 + L * 10)} 545L${f(108 - L * 26)} 545Z` : '');
       spillG.setAttribute('opacity', Math.min(1, glowK * (0.2 + 0.8 * L) * (theta > 0.02 ? 1 : 0)).toFixed(3));
       halo.setAttribute('cx', f((155 + lx) / 2));
       halo.setAttribute('rx', f(22 + (lx - 155) * 1.05));
-      haloG.setAttribute('opacity', Math.min(1, glowK * L).toFixed(3));
+      const hk = Math.min(1, glowK * L).toFixed(3);
+      halo.setAttribute('opacity', hk);
+      if (motesLibres) moteEls.forEach((m) => m.setAttribute('opacity', hk));
     }
+    /** la porte à l'angle theta : le vantail projeté point par point (tant qu'il est dans le dessin), et la lumière */
+    function layoutDoor() {
+      if (!porte) {
+        LP.forEach(([el, fn]) => el.setAttribute('d', fn()));
+        LT.forEach(([el, cx, cy]) => el.setAttribute('transform', affine(cx, cy)));
+        leafShade.setAttribute('opacity', (0.04 + 0.3 * Math.sin(theta)).toFixed(3));
+        const tl = proj(155, 200), bl = proj(155, 462);
+        const glassQ = quadD(165, 210, 70, 146);
+        clipDoorP.setAttribute('d', `M155 200H245L${f(tl[0])} ${f(tl[1])}L${f(bl[0])} ${f(bl[1])}L245 462H155Z` + glassQ);
+        glassClipP.setAttribute('d', glassQ);
+        sheenDoorP.setAttribute('d', glassQ);
+        doorTint.setAttribute('d', glassQ);
+        rim.setAttribute('d', theta > 0.02 ? `M${f(tl[0])} ${f(tl[1] + 1)}L${f(bl[0])} ${f(bl[1] - 1)}` : '');
+        if (verre) verre.majClip();
+      }
+      layoutLumiere();
+    }
+    let motesLibres = false, verre = null, idleFait = false, idleAttend = false; // (voir idle : les calques)
     let swingId = 0, doorBusy = false;
+    const COURBES = new Map([[AC.ease.inOutSine, 'cubic-bezier(.37,0,.63,1)'], [AC.ease.outBack, 'cubic-bezier(.34,1.56,.64,1)'], [AC.ease.outCubic, 'cubic-bezier(.33,1,.68,1)'], [AC.ease.linear, 'linear']]);
+    const ombreDe = (th) => (0.04 + 0.3 * Math.sin(th)).toFixed(3);
+    const tourne = (th) => `rotateY(${f((-th * 180) / Math.PI)}deg)`;
     async function swingTo(th, ms, ease = AC.ease.inOutSine) {
       const id = ++swingId, th0 = theta;
+      if (porte) {
+        // sur le compositeur : le vantail tourne sur ses gonds, son ombre suit ; la lumière du trottoir suit les grands gestes
+        const T = { duration: AC.reduced ? 0 : Math.max(0, ms), easing: COURBES.get(ease) || 'ease-in-out' };
+        const de = getComputedStyle(porte.boite).transform, deO = getComputedStyle(porte.ombre).opacity;
+        porte.boite.getAnimations().forEach((a) => a.cancel());
+        porte.boite.style.transform = tourne(th);
+        porte.ombre.style.opacity = ombreDe(th);
+        theta = th;
+        if (!T.duration) { layoutLumiere(); return; }
+        const a = AC.ambiance.joue(porte.boite.animate([{ transform: de && de !== 'none' ? de : tourne(th0) }, { transform: tourne(th) }], T), host);
+        AC.ambiance.joue(porte.ombre.animate([{ opacity: deO }, { opacity: ombreDe(th) }], T), host);
+        if (Math.abs(th - th0) > 0.2) AC.tween(ms, (e) => { if (id === swingId) { theta = th0 + (th - th0) * e; layoutLumiere(); } }, ease).then(() => { if (id === swingId) { theta = th; layoutLumiere(); } });
+        await a.finished.catch(() => {});
+        return;
+      }
       if (AC.reduced || ms <= 0) { theta = th; layoutDoor(); return; }
       await AC.tween(ms, (e) => { if (id === swingId) { theta = th0 + (th - th0) * e; layoutDoor(); } }, ease);
     }
     function swingSign(amp) { // la pancarte se balance sur sa cordelette
       if (AC.reduced) return;
-      AC.tween(1500, (e) => sign.setAttribute('transform', `rotate(${f(amp * Math.exp(-3.2 * e) * Math.sin(e * 15))} 200 281)`));
+      const oscille = (e) => amp * Math.exp(-3.2 * e) * Math.sin(e * 15);
+      if (porte) { // (sur sa couche, dans le vantail : le compositeur la balance)
+        porte.signe.getAnimations().forEach((a) => a.cancel());
+        const k = [];
+        for (let i = 0; i <= 36; i++) k.push({ transform: `rotate(${f(oscille(i / 36))}deg)` });
+        AC.ambiance.joue(porte.signe.animate(k, { duration: 1500 }), host);
+        return;
+      }
+      AC.tween(1500, (e) => sign.setAttribute('transform', `rotate(${f(oscille(e))} 200 281)`));
     }
     layoutDoor();
 
@@ -778,8 +825,8 @@
     rect(slate, 95.5, 433.5, 39, 57, '#262826');
     rect(slate, 95.5, 433.5, 39, 57, lin(defs, U('sl'), [[0, '#fff', 0.06], [1, '#fff', 0]], { x1: 0, y1: 0, x2: 1, y2: 1 }));
     const chalk = S('g', { class: 'fa-chalk', fill: '#F1EFEA', 'font-family': FONT_LETTRES, 'text-anchor': 'middle' }, slate);
-    S('text', { x: 115, y: 442, 'font-size': 4.6 }, chalk).textContent = 'PÂTISSERIES';
-    S('text', { x: 115, y: 447.5, 'font-size': 4.6 }, chalk).textContent = 'DU JOUR';
+    S('text', { x: 115, y: 442, 'font-size': 4.6 }, chalk).textContent = AC.t('PÂTISSERIES');
+    S('text', { x: 115, y: 447.5, 'font-size': 4.6 }, chalk).textContent = AC.t('DU JOUR');
     const chalkItems = [];
     (AC.ARDOISE ? AC.ARDOISE.items.slice(0, 6) : []).forEach((it, i) => {
       const t = S('text', { x: 98, y: 455 + i * 5.6, 'font-size': 3, 'text-anchor': 'start', 'font-family': FONT_SANS }, chalk);
@@ -791,7 +838,8 @@
     // terrasse gauche, au premier plan (plus grande et plus bas : elle donne la profondeur) :
     // table pliante menthe, chaise, la tasse de chocolat qui fume
     const FG = 'translate(-28.8 -302) scale(1.6)';
-    const terrL = S('g', { class: 'fa-terr-l' }, S('g', { transform: FG }, front));
+    const avantPlan = S('g', { transform: FG }, front);
+    const terrL = S('g', { class: 'fa-terr-l' }, avantPlan);
     chair(terrL, 38, 470, P.mint, P.mintDark, false, defs);
     const tableL = table(terrL, 6, 490, 74, P.mint, P.mintDark);
     const cup = S('g', { class: 'fa-cup', transform: 'translate(18 0)' }, terrL); // la tasse, au milieu de la table
@@ -825,6 +873,7 @@
     const plante = (x, y) => {
       const g = S('g', { class: 'fa-plante' }, fl);
       g.style.transformOrigin = `${x}px ${y}px`;
+      g.pied = [x, y];
       potsSway.push(g);
       return g;
     };
@@ -840,12 +889,15 @@
     });
     path(tul, tiges.join(''), 'none', { stroke: '#4F8A45', 'stroke-width': 1.1 });
     tb.flush(tul);
+    const contenants = [];
+    const contenant = () => { const g = S('g', { class: 'fa-contenant' }, fl); contenants.push(g); return g; };
     const zinc = lin(defs, U('zn'), [[0, '#7F8A91'], [0.3, '#B9C3C8'], [0.6, '#8E989F'], [1, '#6B757C']], { x1: 0, y1: 0, x2: 1, y2: 0 });
-    path(fl, 'M258 460h22l-2.3 19h-17.4z', zinc);
-    path(fl, 'M258.8 466.5h20.4M259.5 472.5h19', 'none', { stroke: '#667077', 'stroke-width': 0.9 });
-    path(fl, 'M258.8 467.4h20.4M259.5 473.4h19', 'none', { stroke: '#D5DCE0', 'stroke-width': 0.5, opacity: 0.7 });
-    rect(fl, 257.3, 458.6, 23.4, 2.4, '#C7CFD4', { rx: 1 });
-    path(fl, 'M258.4 462.5a1.6 1.6 0 1 1 0 -.1M279.6 462.5a1.6 1.6 0 1 0 0 -.1', 'none', { stroke: '#8E989F', 'stroke-width': 0.8 });
+    const seau = contenant();
+    path(seau, 'M258 460h22l-2.3 19h-17.4z', zinc);
+    path(seau, 'M258.8 466.5h20.4M259.5 472.5h19', 'none', { stroke: '#667077', 'stroke-width': 0.9 });
+    path(seau, 'M258.8 467.4h20.4M259.5 473.4h19', 'none', { stroke: '#D5DCE0', 'stroke-width': 0.5, opacity: 0.7 });
+    rect(seau, 257.3, 458.6, 23.4, 2.4, '#C7CFD4', { rx: 1 });
+    path(seau, 'M258.4 462.5a1.6 1.6 0 1 1 0 -.1M279.6 462.5a1.6 1.6 0 1 0 0 -.1', 'none', { stroke: '#8E989F', 'stroke-width': 0.8 });
     // 2) le panier et ses marguerites
     const mar = plante(301, 463);
     const fb2 = bucket();
@@ -864,13 +916,14 @@
     path(mar, tigesM.join(''), 'none', { stroke: '#5E8F4A', 'stroke-width': 0.8 });
     path(mar, petales.join(''), '#FBF9F3');
     path(mar, coeurs.join(''), '#E9B92C');
-    path(fl, 'M286 463h30l-2.6 17h-24.8z', '#C8A06A');
+    const panier = contenant();
+    path(panier, 'M286 463h30l-2.6 17h-24.8z', '#C8A06A');
     const tresse = [];
     for (let k = 0; k < 5; k++) tresse.push(`M${f(286.4 + k * 0.5)} ${f(466 + k * 3.2)}h${f(29.2 - k)}`);
-    path(fl, tresse.join(''), 'none', { stroke: '#A8814F', 'stroke-width': 1.2, 'stroke-dasharray': '2.2 1.2' });
-    path(fl, 'M289 463l1 17M295 463l.5 17M301 463v17M307 463l-.5 17M313 463l-1 17', 'none', { stroke: '#B08754', 'stroke-width': 0.6 });
-    rect(fl, 285.2, 461.4, 31.6, 3, '#B58A55', { rx: 1.4 });
-    path(fl, 'M289 461.6c4 -1.6 8 1.2 12 0s8 -1.6 12 0', 'none', { stroke: '#8FA4D6', 'stroke-width': 1.6, opacity: 0.9 }); // le torchon à carreaux bleus
+    path(panier, tresse.join(''), 'none', { stroke: '#A8814F', 'stroke-width': 1.2, 'stroke-dasharray': '2.2 1.2' });
+    path(panier, 'M289 463l1 17M295 463l.5 17M301 463v17M307 463l-.5 17M313 463l-1 17', 'none', { stroke: '#B08754', 'stroke-width': 0.6 });
+    rect(panier, 285.2, 461.4, 31.6, 3, '#B58A55', { rx: 1.4 });
+    path(panier, 'M289 461.6c4 -1.6 8 1.2 12 0s8 -1.6 12 0', 'none', { stroke: '#8FA4D6', 'stroke-width': 1.6, opacity: 0.9 }); // le torchon à carreaux bleus
     // 3) le buis en boule
     const buis = plante(332, 463);
     S('rect', { x: 331.2, y: 459, width: 1.6, height: 5, fill: '#6B4B2E' }, buis);
@@ -882,10 +935,11 @@
       bb2.add(lum > 2 ? '#7BAA5E' : lum > -3 ? '#5E8E4A' : '#335A2C', dDisc(x, y, 0.9 + R() * 0.9));
     }
     bb2.flush(buis);
-    path(fl, 'M324.5 464h15l-1.7 15h-11.6z', '#B5653F');
-    path(fl, 'M324.5 464h4l-.5 15h-1.8z', '#fff', { opacity: 0.12 });
-    rect(fl, 323.4, 462, 17.2, 3.4, '#C87A52', { rx: 0.8 });
-    rect(fl, 323.4, 465, 17.2, 0.8, '#000', { opacity: 0.18 });
+    const pot = contenant();
+    path(pot, 'M324.5 464h15l-1.7 15h-11.6z', '#B5653F');
+    path(pot, 'M324.5 464h4l-.5 15h-1.8z', '#fff', { opacity: 0.12 });
+    rect(pot, 323.4, 462, 17.2, 3.4, '#C87A52', { rx: 0.8 });
+    rect(pot, 323.4, 465, 17.2, 0.8, '#000', { opacity: 0.18 });
 
     /* ---------- les oiseaux : une mésange bleue, une charbonnière, un moineau ; ils entrent et sortent des nichoirs ---------- */
     const PLUMES = [
@@ -912,8 +966,9 @@
       S('circle', { cx: 4.2, cy: -3.7, r: 0.7, fill: '#111' }, head);
       path(head, 'M6.2 -3.6l1.6 .5l-1.6 .5z', '#3A3A3A');
       path(b, 'M-0.6 4.6v2M1 4.6v2', 'none', { stroke: '#5A4A3A', 'stroke-width': 0.5, class: 'fa-legs' });
-      return { g: b, wing, head, body, busy: false, maison: -1, flap: null };
+      return { g: b, wing, head, body, busy: false, maison: -1, flap: null, c: null };
     }
+    const corpsDe = (b) => (b.c ? b.c.boite : b.g); // l'oiseau sur son calque (voir enCalque), sinon dans le dessin
     const birds = PLUMES.map(makeBird);
     birds[0].maison = 1; // au début, deux sont chez eux (le nichoir du milieu, celui de droite), le moineau est dehors
     birds[1].maison = 2;
@@ -927,11 +982,47 @@
     const reserve = houses.map(() => false); // un oiseau y entre ou en sort
     const loin = (dir) => [dir > 0 ? 500 : -100, 6 + Math.random() * 60]; // hors champ, même quand on voit un peu plus de rue
     const piou = (n, o = {}) => AC.sfx && AC.sfx.play(n, o);
-    function battre(b, on) {
-      if (!b.flap) b.flap = b.wing.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-60deg) scaleY(1.3)' }], { duration: 90, direction: 'alternate', iterations: Infinity });
-      if (on) b.flap.play(); else { b.flap.pause(); b.flap.currentTime = 0; }
+    let piafsCalques = false; // (idle : les oiseaux passent sur leurs calques)
+    /** L'oiseau sur son calque : une enveloppe qui vole (son origine : celle de l'oiseau, au coin du dessin) ; dedans, son
+        corps, puis son aile et sa tête chacune sur sa couche : leurs gestes (battre des ailes, regarder) sont joués par
+        le compositeur, comme le vol. (Un oiseau en plein geste quand la devanture passe en calques y passe à son
+        prochain départ : voir depart) */
+    function enCalque(b) {
+      if (b.c) return;
+      b.g.getAnimations().forEach((a) => a.cancel());
+      if (b.flap) { AC.ambiance.lache(b.flap); b.flap.cancel(); b.flap = null; }
+      b.g.removeAttribute('opacity');
+      b.g.style.opacity = '';
+      const c = (b.c = monde.calque(b.g, { marge: 3, enveloppe: true }));
+      c.boite.style.transformOrigin = `${f(-c.x)}px ${f(-c.y)}px`;
+      c.boite.style.opacity = 0;
+      const couche = (el, [ox, oy]) => {
+        const v = AC.svg('svg', { class: 'ac-dedans', viewBox: `${c.x} ${c.y} ${c.w} ${c.h}`, width: c.w, height: c.h, 'aria-hidden': 'true' }, c.boite);
+        Object.assign(v.style, { position: 'absolute', left: '0px', top: '0px', overflow: 'visible', maxWidth: 'none', transformOrigin: `${f(ox - c.x)}px ${f(oy - c.y)}px` });
+        // (ses parents dans le calque, en coquilles : leurs attributs, sauf l'opacité — c'est l'enveloppe qui montre l'oiseau)
+        const chaine = [];
+        for (let n = el.parentNode; n && n !== c.svg; n = n.parentNode) chaine.unshift(n);
+        let dans = v;
+        chaine.forEach((q) => {
+          const g = AC.svg('g', null, dans);
+          [...q.attributes].forEach((at) => { if (at.name !== 'id' && at.name !== 'opacity') g.setAttribute(at.name, at.value); });
+          dans = g;
+        });
+        dans.appendChild(el);
+        return v;
+      };
+      const bb = b.wing.getBBox(); // (l'aile bat autour de son attache : 20 % de sa largeur, à mi-hauteur)
+      b.aile = couche(b.wing, [bb.x + bb.width * 0.2, bb.y + bb.height / 2]);
+      b.tete = couche(b.head, [0, 0]); // (la tête tourne autour du centre de l'oiseau)
     }
-    const regarde = (b) => b.head.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg)' }, { transform: 'rotate(10deg)' }, { transform: 'rotate(0)' }], { duration: 900 }).finished;
+    function battre(b, on) {
+      if (!b.flap) b.flap = (b.aile || b.wing).animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-60deg) scaleY(1.3)' }], { duration: 90, direction: 'alternate', iterations: Infinity });
+      // (pendant le vol, l'ambiance la suspend si la devanture ne se voit plus ; posé, l'oiseau ne bat plus des ailes)
+      if (on) { b.flap.play(); AC.ambiance.joue(b.flap, host); } else { AC.ambiance.lache(b.flap); b.flap.pause(); b.flap.currentTime = 0; }
+    }
+    // (les gestes des oiseaux passent par l'ambiance : quittée en plein vol, la devanture les suspend, et ils reprennent au retour)
+    const geste = (a) => AC.ambiance.joue(a, host);
+    const regarde = (b) => geste((b.tete || b.head).animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg)' }, { transform: 'rotate(10deg)' }, { transform: 'rotate(0)' }], { duration: 900 })).finished;
     function vol(b, from, to, dir, ms, haut = 40) {
       const [x0, y0] = from, [x1, y1] = to;
       const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - haut;
@@ -940,10 +1031,15 @@
         const t = k / 14, u = 1 - t;
         steps.push({ transform: poseB(u * u * x0 + 2 * u * t * mx + t * t * x1, u * u * y0 + 2 * u * t * my + t * t * y1, dir, 1, (t - 0.5) * -18) });
       }
-      return b.g.animate(steps, { duration: ms, fill: 'forwards', easing: 'ease-in-out' }).finished;
+      return geste(corpsDe(b).animate(steps, { duration: ms, fill: 'forwards', easing: 'ease-in-out' })).finished;
     }
-    const pose = (b, kf, ms, easing = 'ease-in-out') => b.g.animate(kf, { duration: ms, fill: 'forwards', easing }).finished;
-    const depart = (b) => { b.g.getAnimations().forEach((a) => a.cancel()); b.g.style.opacity = 1; };
+    const pose = (b, kf, ms, easing = 'ease-in-out') => geste(corpsDe(b).animate(kf, { duration: ms, fill: 'forwards', easing })).finished;
+    const depart = (b) => {
+      if (piafsCalques) enCalque(b);
+      corpsDe(b).getAnimations().forEach((a) => a.cancel());
+      b.g.removeAttribute('opacity');
+      corpsDe(b).style.opacity = 1;
+    };
     /** L'oiseau du nichoir i sort : sa tête au trou, il se pose sur le bâton, regarde, s'envole (parfois se pose et chante) */
     async function sortir(b, i) {
       const h = houses[i];
@@ -978,8 +1074,8 @@
       await vol(b, from, loin(d), d, 1500, 30);
       reserve[i] = false;
       battre(b, false);
-      b.g.getAnimations().forEach((a) => a.cancel());
-      b.g.style.opacity = 0;
+      corpsDe(b).getAnimations().forEach((a) => a.cancel());
+      corpsDe(b).style.opacity = 0;
       b.busy = false;
     }
     /** Un oiseau du dehors arrive, se pose sur le bâton du nichoir i, regarde, et rentre dans le trou */
@@ -1000,8 +1096,8 @@
       await AC.wait(400 + Math.random() * 1100);
       // un petit saut vers le trou, et il disparaît dedans
       await pose(b, [{ transform: poseB(px, py, dir) }, { transform: poseB(tx, ty - 3, dir, 0.9, -10), offset: 0.5 }, { transform: poseB(tx, ty, dir, 0.3, -10), opacity: 0 }], 520, 'ease-in');
-      b.g.getAnimations().forEach((a) => a.cancel());
-      b.g.style.opacity = 0;
+      corpsDe(b).getAnimations().forEach((a) => a.cancel());
+      corpsDe(b).style.opacity = 0;
       b.maison = i;
       reserve[i] = false;
       b.busy = false;
@@ -1042,35 +1138,122 @@
     /* ======================================================================
        API
        ====================================================================== */
-    host.appendChild(svg);
+    // la caméra (s'approcher de la vitrine des horaires) bouge le dessin et ses calques ensemble
+    const cam = document.createElement('div');
+    cam.className = 'fa-cam';
+    Object.assign(cam.style, { position: 'absolute', inset: '0' });
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    cam.appendChild(svg);
+    host.appendChild(cam);
+    const monde = AC.monde(svg);
     let isNight = false, ouvert = true, statut = null, knocking = false, camAnim = null;
-    // le reflet passe sur les vitres toutes les 7 s ; au passage, les lettres dorées s'allument et une étincelle brille.
-    // Piloté par l'ambiance (arrêté quand la devanture ne se voit pas) : 24 images/s pendant qu'il passe (les
-    // 55 premiers % du cycle), et le reste du temps rien ne bouge, donc rien à redessiner.
+    /* le reflet passe sur les vitres toutes les 7 s ; au passage, le mot doré « HORAIRES » s'allume et une étincelle
+       brille. Tout sur des calques : la bande glisse (translateX) dans les vitres (un clip-path fixe) ; une fenêtre de
+       même forme glisse avec elle sur la copie allumée du mot, que son contenu, glissant à l'envers, garde immobile ;
+       l'étincelle grandit et s'éteint. Les quatre animations ont la même horloge (7 s, même départ). */
+    const D_REFLET = 7000, FIN = 0.55, X0 = -60, DX = 420 - X0;
+    const T_REFLET = { duration: D_REFLET, iterations: Infinity };
+    const glisse = (sens) => [{ transform: 'translateX(0px)', offset: 0, easing: 'linear' }, { transform: `translateX(${sens * DX}px)`, offset: FIN }, { transform: `translateX(${sens * DX}px)`, offset: 1 }];
+    const BANDE_OPACITE = [{ opacity: 0 }, { opacity: 1, offset: 0.08 }, { opacity: 1, offset: 0.47 }, { opacity: 0, offset: FIN }, { opacity: 0 }];
     function glints() {
-      const D = 7000, FIN = 0.55, X0 = -60, DX = 420 - X0;
       const ts = ((104 + horW / 2 + 0.5 - 69 + 0.3249 * 310.5 - X0) / DX) * FIN; // quand le reflet atteint la fin du mot
-      // interpolation linéaire par morceaux, [[instant du cycle, valeur], …]
-      const lin = (p, pts) => {
-        for (let i = 1; i < pts.length; i++) if (p <= pts[i][0]) { const [a, va] = pts[i - 1], [b, vb] = pts[i]; return va + (vb - va) * ((p - a) / (b - a || 1)); }
-        return pts[pts.length - 1][1];
+      const T = T_REFLET;
+      // 1) la bande, dans les vitres
+      band.setAttribute('opacity', 1);
+      const cb = monde.calque(band, { enveloppe: true, boite: [60, 155, 290, 310] });
+      const cs = cb.coque(sheen);
+      if (cs) cs.removeAttribute('clip-path');
+      verre = cb;
+      cb.majClip = () => {
+        const [bx, by] = [cb.x, cb.y], r = (x, y, w, h) => `M${f(x - bx)} ${f(y - by)}h${w}v${h}h${-w}z`;
+        const q = porte ? '' : glassQuad().replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (m, x, y) => `${f(+x - bx)} ${f(+y - by)}`);
+        const d = `path('${r(65, 203, 78, 182)}${r(257, 203, 78, 182)}${r(154, 160, 92, 31)}${q}')`;
+        cb.boite.style.clipPath = d;
+        cb.boite.style.webkitClipPath = d;
       };
-      const OPACITE = [[0, 0], [0.08, 1], [0.47, 1], [FIN, 0], [1, 0]];
-      const ETINCELLE = [[0, 0], [ts - 0.018, 0], [ts, 1], [ts + 0.04, 0], [1, 0]];
-      let avant = '';
-      AC.ambiance.pilote((t) => {
-        const p = (t % D) / D, x = DX * Math.min(1, p / FIN);
-        const c = (n) => Math.round(n * 100) / 100; // l'opacité et l'étincelle, au centième
-        const v = [f(X0 + x), c(lin(p, OPACITE)), f(X0 - 41.04 + x), f(X0 - 24.76 + x), c(lin(p, ETINCELLE))];
-        const cle = v.join(' ');
-        if (cle === avant) return;
-        avant = cle;
-        band.setAttribute('transform', `translate(${v[0]} 0)`);
-        band.setAttribute('opacity', v[1]);
-        horGrad.setAttribute('x1', v[2]);
-        horGrad.setAttribute('x2', v[3]);
-        sparkleIn.setAttribute('transform', `scale(${v[4]})`);
-      }, host, (t) => ((t % D) / D < FIN + 0.01 ? 24 : 4));
+      cb.majClip();
+      AC.ambiance.joue(cb.svg.animate(glisse(1), T), host);
+      AC.ambiance.joue(cb.svg.animate(BANDE_OPACITE, T), host);
+      // 2) le mot allumé, découvert par une fenêtre qui suit la bande (sur la ligne du mot)
+      const yM = 305, hM = 16, x0 = 60 - 0.3249 * (yM + hM / 2) + X0; // la bande, à la hauteur du mot
+      horLum.setAttribute('opacity', 1);
+      const cm = monde.calque(horLum, { enveloppe: true, boite: [f(x0 - 3), yM, 24, hM] });
+      cm.boite.classList.add('fa-fenetre');
+      const fondu = 'linear-gradient(90deg, transparent, #000 35%, #000 65%, transparent)';
+      Object.assign(cm.boite.style, { overflow: 'hidden', webkitMaskImage: fondu, maskImage: fondu });
+      cm.boite.style.transformOrigin = cm.svg.style.transformOrigin = `${f(12)}px ${f(hM / 2)}px`;
+      AC.ambiance.joue(cm.boite.animate(glisse(1).map((k) => ({ ...k, transform: k.transform + ' skewX(-18deg)' })), T), host);
+      AC.ambiance.joue(cm.svg.animate(glisse(-1).map((k) => ({ ...k, transform: 'skewX(18deg) ' + k.transform })), T), host);
+      // 3) l'étincelle au bout du mot
+      sparkleIn.removeAttribute('transform');
+      const ce = monde.calque(sparkleIn, { marge: 1, boite: [104 + horW / 2 - 3.5, 307, 8, 8] });
+      const [ex, ey] = [104 + horW / 2 + 0.5, 310.5];
+      ce.svg.style.transformOrigin = `${f(ex - ce.x)}px ${f(ey - ce.y)}px`;
+      AC.ambiance.joue(ce.svg.animate([{ transform: 'scale(0)' }, { transform: 'scale(0)', offset: Math.max(0, ts - 0.018) }, { transform: 'scale(1)', offset: ts }, { transform: 'scale(0)', offset: Math.min(1, ts + 0.04) }, { transform: 'scale(0)' }], T), host);
+    }
+
+    /* la porte sur le compositeur : le vantail, redessiné à plat (theta = 0) avec ce qui est posé sur sa vitre (la teinte
+       du verre, le vinyle, la pancarte), sort sur un calque qui tourne en 3D sur ses gonds (rotateY, dans la perspective
+       de la scène : l'œil en 200, 322, à 700 unités, comme proj()). La vitre y devient un trou, par où l'on voit la
+       salle (découpée une fois pour toutes à l'ouverture de la porte). Posés dessus : l'ombre du vantail, sa propre
+       bande de reflet (même horloge que celle des vitrines), son chant éclairé qui respire. */
+    function porte3d() {
+      const th = theta;
+      swingId++;
+      theta = 0;
+      layoutDoor(); // à plat
+      // la vitre devient un trou : le verre, le filet autour (évidé) et l'ombre du vantail (évidée) laissent voir la salle
+      vitrePiece.remove();
+      bordVitre.setAttribute('d', quadD(163, 208, 74, 150) + quadD(165, 210, 70, 146));
+      bordVitre.setAttribute('fill-rule', 'evenodd');
+      leafShade.setAttribute('d', quadD(155, 200, 90, 262) + quadD(165, 210, 70, 146));
+      leafShade.setAttribute('fill-rule', 'evenodd');
+      const trou = U('trou');
+      S('path', { d: 'M148 194H252V468H148Z' + quadD(165, 210, 70, 146), 'clip-rule': 'evenodd' }, S('clipPath', { id: trou }, defs));
+      leaf.setAttribute('clip-path', `url(#${trou})`); // (le bois et son veinage s'arrêtent au bord du verre)
+      clipDoorP.setAttribute('d', 'M155 200H245V462H155Z');
+      rim.setAttribute('d', 'M155.6 201L155.6 461');
+      rim.setAttribute('opacity', 1);
+      const c = monde.calque(leaf, { enveloppe: true, marge: 3 });
+      voilables.push(c.svg.firstChild); // (le bois : sous le voile du soir, comme le reste du monde)
+      const posee = (v) => Object.assign(v.style, { position: 'absolute', left: '0px', top: '0px', overflow: 'visible', maxWidth: 'none' });
+      const couche = (el) => { const v = AC.svg('svg', { class: 'ac-dedans', viewBox: `${c.x} ${c.y} ${c.w} ${c.h}`, width: c.w, height: c.h, 'aria-hidden': 'true' }); posee(v); (el || c.boite).appendChild(v); return v; };
+      const ombre = couche();
+      ombre.appendChild(leafShade);
+      leafShade.setAttribute('opacity', 1);
+      const vitre = couche();
+      vitre.appendChild(doorTint);
+      vitre.appendChild(onGlassOut);
+      // la pancarte, sur sa couche : elle se balance sur sa cordelette sans repeindre la vitre (voir swingSign)
+      const signe = couche();
+      const gs = S('g', {}, signe);
+      if (onGlass.getAttribute('transform')) gs.setAttribute('transform', onGlass.getAttribute('transform'));
+      sign.removeAttribute('transform');
+      gs.appendChild(sign);
+      signe.style.transformOrigin = `${f(200 - c.x)}px ${f(281 - c.y)}px`;
+      // la bande du reflet, dans la vitre de la porte
+      const clip = document.createElement('div');
+      clip.className = 'ac-dedans fa-vitre-porte';
+      Object.assign(clip.style, { position: 'absolute', overflow: 'hidden', left: f(165 - c.x) + 'px', top: f(210 - c.y) + 'px', width: '70px', height: '146px' });
+      c.boite.appendChild(clip);
+      const bande = AC.svg('svg', { class: 'ac-dedans', viewBox: '165 210 70 146', width: 70, height: 146, 'aria-hidden': 'true' }, clip);
+      posee(bande);
+      rect(S('g', { transform: 'translate(-60 0)' }, bande), 60, 150, 18, 260, '#fff', { opacity: 0.2, transform: 'skewX(-18)' });
+      const chant = couche();
+      chant.appendChild(rim);
+      c.boite.style.transformOrigin = `${f(245 - c.x)}px 50%`;
+      monde.plan.style.perspective = '700px';
+      monde.plan.style.perspectiveOrigin = '200px 322px';
+      porte = { boite: c.boite, ombre, vitre, signe, chant };
+      ombre.style.opacity = ombreDe(th);
+      c.boite.style.transform = tourne(th);
+      theta = th;
+      layoutLumiere();
+      if (verre) verre.majClip();
+      AC.ambiance.joue(bande.animate(glisse(1), T_REFLET), host);
+      AC.ambiance.joue(bande.animate(BANDE_OPACITE, T_REFLET), host);
+      AC.ambiance.joue(chant.animate([{ opacity: 0.55 }, { opacity: 0.95 }], { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }), host);
+      api.syncLight();
     }
 
     const api = {
@@ -1085,7 +1268,7 @@
       setStatus(st) {
         statut = st || statut;
         ouvert = !!(st && st.ouvert);
-        signTxt.textContent = ouvert ? 'OUVERT' : 'FERMÉ';
+        signTxt.textContent = AC.t(ouvert ? 'OUVERT' : 'FERMÉ');
         signTxt.setAttribute('fill', ouvert ? P.teal : '#A13D3D');
         // vinyle des horaires : les heures réelles, et le jour même en doré
         const H = AC.HOURS ? AC.HOURS.semaine : [];
@@ -1093,7 +1276,10 @@
         const auj = AC.parisNow ? AC.parisNow().getDay() : -1;
         horRows.forEach(([a, t], i) => {
           const p = H[order[i]];
-          t.textContent = p ? (order[i] === 0 ? 'Brunch · ' : '') + AC.fmtH(p[0]) + ' – ' + AC.fmtH(p[1]) : 'Fermeture';
+          t.textContent = p ? (order[i] === 0 ? 'Brunch · ' : '') + AC.fmtH(p[0]) + ' – ' + AC.fmtH(p[1]) : AC.t('Fermeture');
+          // (la colonne des heures fait 31 unités, jusqu'au filet : un texte plus long, en anglais, s'y resserre)
+          const lg = measure(t.textContent, 3.5, FONT_SERIF);
+          if (lg > 30.5) { t.setAttribute('textLength', 30.5); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); } else t.removeAttribute('textLength');
           const on = order[i] === auj;
           [a, t].forEach((el) => { el.setAttribute('fill', on ? GOLD : '#F6F1E8'); el.setAttribute('font-weight', on ? 700 : 400); });
         });
@@ -1118,6 +1304,7 @@
         lit.style.filter = !ouvert ? 'brightness(.62) saturate(.8)' : '';
         // la porte reste éclairée (on y entre toujours : c'est la carte), un peu moins quand c'est fermé
         litDoor.style.filter = !ouvert ? 'brightness(.9) saturate(.9)' : '';
+        if (porte) [porte.vitre, porte.signe, porte.chant].forEach((x) => { x.style.filter = litDoor.style.filter; });
         glowK = (ouvert ? 1 : 0.8) * (isNight ? 1.25 : 1);
         layoutDoor();
       },
@@ -1162,35 +1349,70 @@
         setTimeout(() => lettersG.setAttribute('filter', paintF), withLetters ? 0 : 1600);
       },
 
-      /** Vie ambiante : vapeur, fleurs, enseigne, reflets, oiseaux (les boucles sans fin passent par
-          AC.ambiance : avancées à petite cadence, arrêtées quand la devanture ne se voit pas) */
+      /** Vie ambiante : vapeur, fleurs, enseigne, reflets, oiseaux. Tout ce qui bouge sans fin sort sur son calque
+          (AC.monde) et s'anime sur le compositeur, en pause quand la devanture ne se voit pas (AC.ambiance.joue). */
       idle(frozen) {
         if (AC.reduced || frozen) {
           steam.querySelectorAll('.fa-wisp').forEach((w) => { w.style.opacity = '0.25'; });
           return;
         }
-        const vit = (a) => AC.ambiance.anime(a, host);
-        steam.querySelectorAll('.fa-wisp').forEach((w, i) => {
-          vit(w.animate([
-            { opacity: 0, transform: 'translate(0,4px) scale(.7,.8)' },
-            { opacity: 0.55, offset: 0.3 },
-            { opacity: 0, transform: `translate(${i % 2 ? 3 : -2}px,-16px) scale(1.2,1.25)` },
-          ], { duration: 2600 + i * 400, delay: i * 800, iterations: Infinity, easing: 'ease-out' }));
-        });
-        vit(plaqueG.animate([{ transform: 'rotate(-1.8deg)' }, { transform: 'rotate(1.8deg)' }], { duration: 3200, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
-        potsSway.forEach((p, i) => vit(p.animate([{ transform: 'rotate(-1.2deg)' }, { transform: 'rotate(1.4deg)' }], { duration: 2600 + i * 500, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' })));
+        if (idleFait) return;
+        // (pour mesurer ses morceaux, le dessin doit être affiché : sinon, à la première ouverture de l'accueil)
+        if (!svg.getBoundingClientRect().width) {
+          if (!idleAttend) { idleAttend = true; AC.quandAffiche(svg, () => api.idle()); }
+          return;
+        }
+        idleFait = true;
+        const joue = (a) => AC.ambiance.joue(a, host);
+        const pivotDe = (c, x, y) => { c.svg.style.transformOrigin = `${f(x - c.x)}px ${f(y - c.y)}px`; };
+        // 1) la corniche : les rameaux qui se balancent, puis (au-dessus) les fleurs séchées et les nichoirs ; la plaque
         const brins = [...twigs.querySelectorAll('.fa-twig')];
-        AC.ambiance.balance(brins, host, { de: -1.4, a: 1.4, periode: (i) => 2400 + (i % 7) * 300, pivot: (i) => pivots.get(brins[i]) });
+        const cBrins = brins.map((g) => monde.calque(g, { marge: 3 }));
+        const cFleurs = monde.calque(flowers, { marge: 2 });
+        houses.forEach((h) => { h.c = monde.calque(h.g, { marge: 2, cible: true }); });
+        const cPlaque = monde.calque(plaqueG, { marge: 3, cible: true });
+        [...cBrins, cFleurs, ...houses.map((h) => h.c), cPlaque].forEach((c) => voilables.push(c.svg.firstChild)); // (la coquille du monde)
+        AC.ambiance.balance(cBrins, host, { de: -1.4, a: 1.4, periode: (i) => 2400 + (i % 7) * 300, pivot: (i) => pivots.get(brins[i]) });
+        pivotDe(cPlaque, 366, 30);
+        api.targets.flagCalque = cPlaque.svg;
+        joue(cPlaque.svg.animate([{ transform: 'rotate(-1.8deg)' }, { transform: 'rotate(1.8deg)' }], { duration: 3200, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
+        // 2) le reflet des vitres
         glints();
-        // la lumière de la porte respire (par petits paliers : sa grande tache n'est repeinte que quelques fois
-        // par seconde), des poussières dorées flottent dedans
-        const paliers = { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'steps(12, jump-none)' };
-        vit(halo.animate([{ opacity: 0.65, easing: 'ease-in-out' }, { opacity: 1 }], paliers));
-        vit(rim.animate([{ opacity: 0.55, easing: 'ease-in-out' }, { opacity: 0.95 }], paliers));
-        moteEls.forEach((m, i) => {
-          const dx = (Math.random() - 0.5) * 16, dy = -(16 + Math.random() * 28);
-          vit(m.animate([{ opacity: 0, transform: 'translate(0px, 0px)' }, { opacity: 0.9, offset: 0.35 }, { opacity: 0, transform: `translate(${f(dx)}px, ${f(dy)}px)` }], { duration: 3800 + Math.random() * 3000, delay: i * 650, iterations: Infinity, easing: 'ease-in-out' }));
+        // 3) la terrasse, au-dessus du reflet ; les plantes qui se balancent, chacune sous son contenant
+        [slate, avantPlan, terrR].forEach((g) => voilables.push(monde.calque(g, { marge: 2 }).coque(front)));
+        slate.style.pointerEvents = 'auto';
+        cup.style.pointerEvents = 'auto';
+        const cPlantes = potsSway.map((g) => { g.style.transformOrigin = ''; return monde.calque(g, { marge: 3 }); });
+        contenants.forEach((g) => voilables.push(monde.calque(g, { marge: 1 }).coque(front)));
+        cPlantes.forEach((c) => voilables.push(c.coque(front)));
+        AC.ambiance.balance(cPlantes, host, { de: -1.2, a: 1.4, periode: (i) => 2600 + i * 500, pivot: (i) => potsSway[i].pied });
+        voile(voileK);
+        // 4) la vapeur de la tasse (au premier plan, agrandie : ses mouvements aussi)
+        steam.querySelectorAll('.fa-wisp').forEach((w, i) => {
+          const bb = w.getBBox(), m = monde.versDessin(w), o = m.transformPoint(new DOMPoint(bb.x, bb.y)), k = Math.hypot(m.a, m.b);
+          const c = monde.calque(w, { marge: 2 });
+          w.setAttribute('opacity', 1);
+          pivotDe(c, o.x, o.y);
+          joue(c.svg.animate([
+            { opacity: 0, transform: `translate(0px, ${f(4 * k)}px) scale(.7, .8)` },
+            { opacity: 0.55, offset: 0.3 },
+            { opacity: 0, transform: `translate(${f((i % 2 ? 3 : -2) * k)}px, ${f(-16 * k)}px) scale(1.2, 1.25)` },
+          ], { duration: 2600 + i * 400, delay: i * 800, iterations: Infinity, easing: 'ease-out', fill: 'backwards' }));
         });
+        // 5) la lumière de la porte respire, son chant brille, des poussières dorées flottent dedans
+        const cHalo = monde.calque(halo, { marge: 4 });
+        joue(cHalo.svg.animate([{ opacity: 0.65 }, { opacity: 1 }], { duration: 2300, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }));
+        moteEls.forEach((el, i) => {
+          const c = monde.calque(el, { marge: 1 });
+          const dx = (Math.random() - 0.5) * 16, dy = -(16 + Math.random() * 28);
+          joue(c.svg.animate([{ opacity: 0, transform: 'translate(0px, 0px)' }, { opacity: 0.9, offset: 0.35 }, { opacity: 0, transform: `translate(${f(dx)}px, ${f(dy)}px)` }], { duration: 3800 + Math.random() * 3000, delay: i * 650, iterations: Infinity, easing: 'ease-in-out', fill: 'backwards' }));
+        });
+        motesLibres = true;
+        // 6) les oiseaux : chacun sur son calque, avec son aile et sa tête (voir enCalque)
+        piafsCalques = true;
+        birds.forEach((b) => { if (!b.busy) enCalque(b); });
+        // 7) la porte : son vantail tourne en 3D sur le compositeur (le courant d'air, la visite, le retour)
+        porte3d();
         // de temps en temps, un courant d'air pousse la porte (on a envie de la toucher)
         const loopDoor = async () => {
           await AC.wait(8000 + Math.random() * 7000);
@@ -1219,6 +1441,8 @@
         if (!viePiaf(i)) return api.shake(houses[i].inner);
         return Promise.resolve();
       },
+      /** le cadre de la caméra (le dessin et ses calques) */
+      cam,
 
       /** Le panneau « ICI » : les mots s'allument un par un */
       async readIci() {
@@ -1254,12 +1478,12 @@
           const k = Math.min(W / (r.w * s), H / (r.h * s)), cx = r.x + r.w / 2, cy = r.y + r.h / 2;
           to = `translate(${(W / 2 - k * (cx - ox) * s).toFixed(1)}px, ${(H / 2 - k * (cy - oy) * s).toFixed(1)}px) scale(${k.toFixed(4)})`;
         }
-        const from = getComputedStyle(svg).transform;
+        const from = getComputedStyle(cam).transform;
         if (camAnim) camAnim.cancel();
-        svg.style.transformOrigin = '0 0';
-        svg.style.transform = to === 'none' ? '' : to;
+        cam.style.transformOrigin = '0 0';
+        cam.style.transform = to === 'none' ? '' : to;
         if (AC.reduced || ms <= 0) return Promise.resolve();
-        camAnim = svg.animate([{ transform: from }, { transform: to }], { duration: ms, easing: 'cubic-bezier(.55,0,.2,1)' });
+        camAnim = cam.animate([{ transform: from }, { transform: to }], { duration: ms, easing: 'cubic-bezier(.55,0,.2,1)' });
         return camAnim.finished.catch(() => {});
       },
       /** Le cadrage de la vitrine des horaires (le vinyle devient lisible) */

@@ -21,27 +21,44 @@
 <body>
 <main>
   <a class="retour" href="./">← L'Armoire à Cuillères</a>
-  <h1>Mentions légales</h1>
+  <h1 data-en="Legal notice">Mentions légales</h1>
 
-  <h2>Éditeur du site</h2>
-  <p>L'Armoire à Cuillères, entreprise individuelle de Mallorie Bournel<br>
+  <h2 data-en="Publisher">Éditeur du site</h2>
+  <p data-en="L'Armoire à Cuillères, sole proprietorship of Mallorie Bournel<br>11 rue des Chaussetiers, 63000 Clermont-Ferrand, France<br>SIRET 813 373 784 00012 · <mark>EU VAT number to be added</mark><br>Phone: +33 7 83 41 21 45 · Email: <a href=&quot;mailto:hello@larmoireacuilleres.com&quot;>hello@larmoireacuilleres.com</a>">L'Armoire à Cuillères, entreprise individuelle de Mallorie Bournel<br>
   11 rue des Chaussetiers, 63000 Clermont-Ferrand<br>
   SIRET 813 373 784 00012 · <mark>n° de TVA intracommunautaire à compléter</mark><br>
   Téléphone : 07 83 41 21 45 · E-mail : <a href="mailto:hello@larmoireacuilleres.com">hello@larmoireacuilleres.com</a></p>
-  <p>Directrice de la publication : <mark>à confirmer</mark>.</p>
+  <p data-en="Publication director: <mark>to be confirmed</mark>.">Directrice de la publication : <mark>à confirmer</mark>.</p>
 
-  <h2>Hébergement</h2>
-  <p><mark>Hébergeur de production à compléter.</mark> Démonstration hébergée par GitHub Pages (GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis).</p>
+  <h2 data-en="Hosting">Hébergement</h2>
+  <p data-en="<mark>Production host to be added.</mark> Demo hosted by GitHub Pages (GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, United States)."><mark>Hébergeur de production à compléter.</mark> Démonstration hébergée par GitHub Pages (GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis).</p>
 
-  <h2>Données personnelles</h2>
-  <p>Ce site ne dépose aucun cookie et ne collecte aucune donnée : pas de compte, pas de mesure d'audience.</p>
-  <p>La carte fidélité (prénom, nombre de cuillères, numéro de carte) est enregistrée uniquement dans votre téléphone (stockage local du navigateur) ; effacer les données du site l'efface.</p>
-  <p>La demande de réservation du brunch n'est pas envoyée par le site : le message est préparé ici puis envoyé par l'application SMS de votre téléphone, au numéro de la boutique.</p>
-  <p>Les polices de caractères sont hébergées sur le site : aucun appel n'est fait à des services tiers au chargement des pages. Les liens vers Instagram, Facebook et Google Maps mènent à ces services, soumis à leurs propres règles.</p>
+  <h2 data-en="Personal data">Données personnelles</h2>
+  <p data-en="This site sets no cookies and has no audience measurement.">Ce site ne dépose aucun cookie et ne fait aucune mesure d'audience.</p>
+  <p data-en="The loyalty card account (first name, phone number, number of spoons, card number) is, in this demo, stored only on your phone (the browser's local storage); clearing the site's data erases it. The phone number is only used to find your card again: never for advertising.">Le compte de la carte fidélité (prénom, numéro de téléphone, nombre de cuillères, numéro de carte) est, dans cette démonstration, enregistré uniquement dans votre téléphone (stockage local du navigateur) ; effacer les données du site l'efface. Le numéro de téléphone ne sert qu'à retrouver votre carte : jamais à de la publicité.</p>
+  <p data-en="Brunch booking requests are not sent by the site: the message is written here and then sent from your phone's messaging app, to the shop's number. The same goes for cake orders, sent from your email app.">La demande de réservation du brunch n'est pas envoyée par le site : le message est préparé ici puis envoyé par l'application SMS de votre téléphone, au numéro de la boutique. De même pour la commande d'un gâteau, envoyée par votre messagerie.</p>
+  <p data-en="Fonts are hosted on the site: no third-party service is called when pages load. Links to Instagram, Facebook and Google Maps lead to those services, which have their own rules. Your language choice (French or English) is remembered on your phone.">Les polices de caractères sont hébergées sur le site : aucun appel n'est fait à des services tiers au chargement des pages. Les liens vers Instagram, Facebook et Google Maps mènent à ces services, soumis à leurs propres règles. Le choix de la langue (français ou anglais) est gardé dans votre téléphone.</p>
 
-  <h2>Propriété intellectuelle</h2>
-  <p>Le logo, le lettrage, les feuilles colorées et les dessins de cuillères et de tasses sont la propriété de L'Armoire à Cuillères. Les photographies de la pile Instagram proviennent du compte @larmoireacuilleres (certaines réalisées par @agenceares). Les illustrations de la devanture, du salon et de la table sont dessinées par programme pour ce site.</p>
-  <p>Polices : Poppins et Playfair Display (SIL Open Font License, textes dans <code>assets/fonts/</code>).</p>
+  <h2 data-en="Intellectual property">Propriété intellectuelle</h2>
+  <p data-en="The logo, lettering, coloured leaves and the drawings of spoons and cups are the property of L'Armoire à Cuillères. The photographs in the Instagram stack come from the @larmoireacuilleres account (some taken by @agenceares). The illustrations of the shopfront, the tea room and the tables are drawn by code for this site.">Le logo, le lettrage, les feuilles colorées et les dessins de cuillères et de tasses sont la propriété de L'Armoire à Cuillères. Les photographies de la pile Instagram proviennent du compte @larmoireacuilleres (certaines réalisées par @agenceares). Les illustrations de la devanture, du salon et de la table sont dessinées par programme pour ce site.</p>
+  <p data-en="Fonts: Poppins and Playfair Display (SIL Open Font License, texts in <code>assets/fonts/</code>).">Polices : Poppins et Playfair Display (SIL Open Font License, textes dans <code>assets/fonts/</code>).</p>
 </main>
+<script>
+/* En anglais (même choix que l'appli : ?lang=, le petit menu de l'accueil, sinon la langue du téléphone) : chaque
+   élément [data-en] prend son texte anglais. */
+(function () {
+  var lang = 'fr';
+  try {
+    var q = /[?&]lang=(fr|en)(&|$)/.exec(location.search), s = localStorage.getItem('ac:lang');
+    if (q) lang = q[1];
+    else if (s) lang = JSON.parse(s) === 'en' ? 'en' : 'fr';
+    else lang = /^fr/i.test((navigator.languages && navigator.languages[0]) || navigator.language || 'fr') ? 'fr' : 'en';
+  } catch (e) { /* navigation privée */ }
+  if (lang !== 'en') return;
+  document.documentElement.lang = 'en';
+  document.title = "Legal notice · L'Armoire à Cuillères";
+  [].forEach.call(document.querySelectorAll('[data-en]'), function (el) { el.innerHTML = el.getAttribute('data-en'); });
+})();
+</script>
 </body>
 </html>

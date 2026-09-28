@@ -43,7 +43,7 @@
     brunch: { jour: 0, debut: 11.5 * 60, services: ['11h30', '12h30', '13h30'] },
   };
   AC.HOURS.semaine[0] = h(11, 19);
-  AC.JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  AC.JOURS = AC.en ? ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] : ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 
   /* ---------- La carte (2026) ---------- */
   // ton : 0 = blanc … 1 = le plus noir (sert au nuancier et aux couleurs de secours)
@@ -217,6 +217,23 @@
     { img: 'cheesecake', legende: 'Le choix le plus difficile de la journée…', date: '2026-09-26', url: 'https://www.instagram.com/reel/DdwokaAgRdv/' },
   ];
 
+  /* ---------- Une sélection de 7 avis Google, dans la carte de la note (onglet Nous) ----------
+     EXEMPLES : textes provisoires de la maquette (la fiche Google ne montre pas ses avis sans compte, et on ne
+     recopie pas ceux des clients sans eux) : à remplacer par 7 vrais avis choisis sur la fiche (prénom + initiale,
+     note, mois, texte), puis passer `exemples` à false. Tant qu'il est vrai, la carte le dit en petit. */
+  AC.AVIS = {
+    exemples: true,
+    selection: [
+      { nom: 'Prénom N.', note: 5, mois: '2026-09', texte: 'Le chocolat chaud le plus onctueux de Clermont : on choisit son cru, il arrive fumant avec une part de fondant. Une adresse à garder.' },
+      { nom: 'Prénom N.', note: 5, mois: '2026-09', texte: 'Brunch du dimanche très généreux : la tarte salée et sa salade, le buffet à volonté, et le cookie pour finir. On a déjà réservé le prochain.' },
+      { nom: 'Prénom N.', note: 5, mois: '2026-08', texte: 'Le cheesecake au citron vert est une merveille, léger et bien acidulé. Tout est fait maison, et ça se sent.' },
+      { nom: 'Prénom N.', note: 5, mois: '2026-08', texte: 'Un tout petit salon, chaleureux comme un cocon : de vieilles tasses, des livres, et une équipe aux petits soins.' },
+      { nom: 'Prénom N.', note: 4, mois: '2026-07', texte: 'La salle se remplit vite le samedi, mieux vaut venir en début d’après-midi. Mais quelle carte de thés et de chocolats !' },
+      { nom: 'Prénom N.', note: 5, mois: '2026-06', texte: 'Accueil adorable : on nous a fait goûter deux crus avant de choisir. Coup de cœur pour le Vanuari noir aux fruits rouges.' },
+      { nom: 'Prénom N.', note: 5, mois: '2026-05', texte: 'Les pâtisseries changent chaque jour sur l’ardoise : brownie, tarte citron meringuée… Impossible de ne pas revenir.' },
+    ],
+  };
+
   /* ---------- Carte fidélité ---------- */
   AC.FIDELITE = {
     objectif: 10, // 10 cuillères accrochées = 1 chocolat chaud offert (règle de la maquette, à valider)
@@ -224,8 +241,12 @@
   };
 
   /* ---------- Utilitaires horaires ---------- */
+  // (hors navigateur, pour les outils de tools/ : pas de dictionnaire, le français)
+  const t = (fr, v) => (AC.t ? AC.t(fr, v) : String(fr).replace(/\{(\w+)\}/g, (m, k) => (v && v[k] != null ? v[k] : m)));
+  /** 13h, 11h30 ; en anglais 1pm, 11:30am */
   const fmtH = (m) => {
     const hh = Math.floor(m / 60), mm = m % 60;
+    if (AC.en && AC.heureEn) return AC.heureEn(hh, mm);
     return hh + 'h' + (mm ? String(mm).padStart(2, '0') : '');
   };
   AC.fmtH = fmtH;
@@ -233,14 +254,14 @@
   /** Le statut maintenant (heure de Paris) : { ouvert, jusqua, prochain: {jour, heure, dansJours} , texte } */
   AC.statut = function (now = AC.parisNow()) {
     // démonstration : ?ouvert dans l'adresse montre la boutique ouverte, quel que soit le jour
-    try { if (new URLSearchParams(location.search).has('ouvert')) return { ouvert: true, jusqua: 19 * 60, texte: 'Ouvert · jusqu’à 19h' }; } catch (e) { /* hors navigateur */ }
+    try { if (new URLSearchParams(location.search).has('ouvert')) return { ouvert: true, jusqua: 19 * 60, texte: t('Ouvert · jusqu’à {h}', { h: fmtH(19 * 60) }) }; } catch (e) { /* hors navigateur */ }
     const jour = now.getDay(), min = now.getHours() * 60 + now.getMinutes();
     const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     const ferme = (d) => AC.HOURS.fermetures.some((f) => iso(d) >= f.du && iso(d) <= f.au);
     const plage = !ferme(now) && AC.HOURS.semaine[jour];
     if (plage && min >= plage[0] && min < plage[1]) {
       const bientot = plage[1] - min <= 30;
-      return { ouvert: true, bientot, jusqua: plage[1], texte: bientot ? 'Ferme bientôt · ' + fmtH(plage[1]) : 'Ouvert · jusqu’à ' + fmtH(plage[1]) };
+      return { ouvert: true, bientot, jusqua: plage[1], texte: t(bientot ? 'Ferme bientôt · {h}' : 'Ouvert · jusqu’à {h}', { h: fmtH(plage[1]) }) };
     }
     // prochaine ouverture
     for (let k = 0; k < 14; k++) {
@@ -248,12 +269,33 @@
       const p = !ferme(d) && AC.HOURS.semaine[d.getDay()];
       if (!p) continue;
       if (k === 0 && min >= p[0]) continue;
-      const quand = k === 0 ? 'à ' + fmtH(p[0]) : k === 1 ? 'demain à ' + fmtH(p[0]) : AC.JOURS[d.getDay()] + ' à ' + fmtH(p[0]);
-      return { ouvert: false, prochain: { jour: d.getDay(), heure: p[0], dansJours: k }, texte: 'Fermé · ouvre ' + quand };
+      const h = fmtH(p[0]);
+      const quand = k === 0 ? t('à {h}', { h }) : k === 1 ? t('demain à {h}', { h }) : t('{jour} à {h}', { jour: AC.JOURS[d.getDay()], h });
+      return { ouvert: false, prochain: { jour: d.getDay(), heure: p[0], dansJours: k }, quand, texte: t('Fermé · ouvre {quand}', { quand }) };
     }
-    return { ouvert: false, texte: 'Fermé' };
+    return { ouvert: false, texte: t('Fermé') };
   };
 
-  /** Prix « 5,20 € » ; plus : « + 0,30 € » */
-  AC.prix = (n, plus) => (plus ? '+ ' : '') + n.toFixed(2).replace('.', ',') + ' €';
+  /** Prix « 5,20 € » ; plus : « + 0,30 € » (en anglais « €5.20 », « + €0.30 ») */
+  AC.prix = (n, plus) => (plus ? '+ ' : '') + (AC.en ? '€' + n.toFixed(2) : n.toFixed(2).replace('.', ',') + ' €');
+
+  /* ---------- En anglais : les textes de la carte, de l'ardoise, du brunch… passent par le dictionnaire
+     (js/ac-en.js ; le texte français est la clé). Les noms propres (les crus, les thés) restent tels quels
+     s'ils n'y sont pas. ---------- */
+  if (AC.en && AC.t) {
+    const tr = (o, ...ks) => ks.forEach((k) => { if (typeof o[k] === 'string') o[k] = AC.t(o[k]); });
+    tr(AC.SHOP, 'accroche', 'repere');
+    AC.CRUS.forEach((c) => tr(c, 'notes'));
+    AC.CARTE.forEach((r) => { tr(r, 'titre', 'note'); r.items.forEach((it) => tr(it, 'nom', 'desc')); });
+    AC.ARDOISE.items.forEach((it) => tr(it, 'nom'));
+    tr(AC.ARDOISE, 'signature');
+    AC.BRUNCH.formule.forEach((x) => tr(x, 't', 'd'));
+    AC.BRUNCH.buffet = AC.BRUNCH.buffet.map((x) => AC.t(x));
+    tr(AC.BRUNCH, 'note', 'resa');
+    AC.PRODUCTEURS.forEach((x) => tr(x, 'quoi'));
+    AC.FAQ.forEach((x) => tr(x, 'q', 'r'));
+    AC.INSTA.forEach((x) => tr(x, 'legende'));
+    AC.AVIS.selection.forEach((x) => tr(x, 'nom', 'texte'));
+    tr(AC.FIDELITE, 'cadeau');
+  }
 })();

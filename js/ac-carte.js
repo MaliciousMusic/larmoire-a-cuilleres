@@ -12,11 +12,12 @@
   const RUBS = [
     ['chocolats', 'Chocolats'], ['cafes', 'Cafés'], ['specialites', 'Spécialités'], ['thes', 'Thés'],
     ['fraiches', 'Fraîches'], ['gateaux', 'Gâteaux'], ['enfants', 'Enfants'], ['supplements', 'Suppléments'],
-  ];
+  ].map(([id, nom]) => [id, AC.t(nom)]);
+  const pc = (n) => AC.t('{n} %', { n }); // « 33 % », en anglais « 33% »
 
   // tout ce qui peut se servir, par id
   const ITEMS = {};
-  AC.CRUS.forEach((c) => { ITEMS[c.id] = { id: c.id, nom: `${c.nom} ${c.pc} %`, prix: AC.CRU_PRIX, kind: 'boisson', cru: c }; });
+  AC.CRUS.forEach((c) => { ITEMS[c.id] = { id: c.id, nom: `${c.nom} ${pc(c.pc)}`, prix: AC.CRU_PRIX, kind: 'boisson', cru: c }; });
   AC.CARTE.forEach((r) => r.items.forEach((it) => { ITEMS[it.id] = { ...it, prix: it.prix != null ? it.prix : r.prix }; }));
   // les gâteaux de l'ardoise qui ne sont pas sur la carte imprimée
   (AC.ARDOISE ? AC.ARDOISE.items : []).forEach((it) => { if (!ITEMS[it.sert]) ITEMS[it.sert] = { id: it.sert, nom: it.nom, prix: it.prix, kind: 'gateau' }; });
@@ -25,7 +26,7 @@
   const etat = { boisson: 'vanuari-noir', gateau: 'fondant-noir' };
 
   /* ---------- le nuancier : trois pages de quatre carrés, du plus doux au plus intense ---------- */
-  const PAGES = ['Doux', 'Équilibrés', 'Intenses'];
+  const PAGES = ['Doux', 'Équilibrés', 'Intenses'].map((p) => AC.t(p));
   const PAR_PAGE = 4;
   const pageDe = (id) => Math.floor(AC.CRUS.findIndex((c) => c.id === id) / PAR_PAGE);
   const f2 = (n) => Math.round(n * 100) / 100;
@@ -68,21 +69,18 @@
   </defs></svg>`;
   const CHEVRON = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 
-  /** L'addition, dans le coin de la table : « Total : » et le prix (ce qui est servi reste dit aux lecteurs d'écran) */
+  /** Ce qui est sur la table, dit aux lecteurs d'écran (pas d'addition affichée : on ne commande pas dans l'appli) */
   function legende() {
     const b = ITEMS[etat.boisson], g = etat.gateau ? ITEMS[etat.gateau] : null;
     const nom = [b && b.nom, g && g.nom].filter(Boolean).join(', ');
-    const total = (b ? b.prix || 0 : 0) + (g ? g.prix || 0 : 0);
-    const el = $('#tg-legende'), prix = AC.prix(total), avant = $('.tg-prix', el);
-    el.innerHTML = `<span class="visuellement-cache">Sur la table : ${esc(nom)}. </span><span class="tg-total">Total&#8239;:</span> <span class="tg-prix">${prix}</span>`;
-    // le prix change : il saute un peu
-    if (avant && avant.textContent !== prix && !AC.reduced) $('.tg-prix', el).animate([{ transform: 'scale(1.22)' }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+    const el = $('#tg-legende');
+    if (el) el.textContent = AC.t('Sur la table : {nom}.', { nom });
   }
 
   function fiche(c) {
     const pos = ((c.pc - 30) / 70) * 100;
     $('#cru-fiche').innerHTML = `
-      <div class="cf-tete"><h4 class="cf-nom">${esc(c.nom)}</h4><span class="cf-pc">${c.pc} % de cacao</span>${c.bio ? '<abbr class="bio" title="Issu de l’agriculture biologique">BIO</abbr>' : ''}</div>
+      <div class="cf-tete"><h4 class="cf-nom">${esc(c.nom)}</h4><span class="cf-pc">${AC.t('{n} % de cacao', { n: c.pc })}</span>${c.bio ? `<abbr class="bio" title="${AC.t('Issu de l’agriculture biologique')}">${AC.t('BIO')}</abbr>` : ''}</div>
       <p class="cf-notes">${esc(c.notes.replace(/'/g, '’'))}</p>
       <div class="cf-jauge" aria-hidden="true"><i style="left:${Math.max(3, Math.min(97, pos)).toFixed(1)}%"></i></div>`;
   }
@@ -137,16 +135,16 @@
       // le nuancier
       const box = $('#nuancier');
       if (box) {
-        const carre = (c, i) => `<button class="carre" type="button" role="radio" aria-checked="false" data-id="${c.id}" data-sfx="chip" data-sfx-i="${i}" aria-label="${esc(c.nom)}, ${c.pc} %">${carreSVG(c)}<b>${c.pc} %</b><span class="carre-nom">${esc(c.nom)}</span></button>`;
+        const carre = (c, i) => `<button class="carre" type="button" role="radio" aria-checked="false" data-id="${c.id}" data-sfx="chip" data-sfx-i="${i}" aria-label="${esc(c.nom)}, ${pc(c.pc)}">${carreSVG(c)}<b>${pc(c.pc)}</b><span class="carre-nom">${esc(c.nom)}</span></button>`;
         const pages = PAGES.map((nom, p) => {
           const cs = AC.CRUS.slice(p * PAR_PAGE, (p + 1) * PAR_PAGE);
-          return `<div class="nu-page" role="group" aria-label="${nom}, de ${cs[0].pc} à ${cs[cs.length - 1].pc} %">${cs.map((c, k) => carre(c, p * PAR_PAGE + k)).join('')}</div>`;
+          return `<div class="nu-page" role="group" aria-label="${AC.t('{nom}, de {a} à {b} %', { nom, a: cs[0].pc, b: cs[cs.length - 1].pc })}">${cs.map((c, k) => carre(c, p * PAR_PAGE + k)).join('')}</div>`;
         }).join('');
         box.innerHTML = `${DEFS}<div class="nu-pages">${pages}</div>
           <div class="nu-pager">
-            <button class="nu-fleche" type="button" data-dir="-1" data-sfx="page" aria-label="Crus plus doux">${CHEVRON('M15 5l-7 7 7 7')}</button>
+            <button class="nu-fleche" type="button" data-dir="-1" data-sfx="page" aria-label="${AC.t('Crus plus doux')}">${CHEVRON('M15 5l-7 7 7 7')}</button>
             ${PAGES.map((nom, p) => `<button class="nu-onglet" type="button" data-p="${p}" data-sfx="page">${nom}</button>`).join('')}
-            <button class="nu-fleche" type="button" data-dir="1" data-sfx="page" aria-label="Crus plus intenses">${CHEVRON('M9 5l7 7-7 7')}</button>
+            <button class="nu-fleche" type="button" data-dir="1" data-sfx="page" aria-label="${AC.t('Crus plus intenses')}">${CHEVRON('M9 5l7 7-7 7')}</button>
           </div>`;
         const track = $('.nu-pages', box);
         let cour = 0, raf = 0;
@@ -226,6 +224,7 @@
       servir(etat.gateau, 'gateau', false, true);
       // la table se prépare quand on ouvre la carte (et pas avant : on garde l'ouverture légère)
       AC.on('view', (v) => { if (v === 'carte' && AC.table) AC.table.reveil(); });
+      AC.on('prechauffe', (v) => { if (v === 'carte' && AC.table) AC.table.reveil(); }); // (l'onglet se prépare, invisible)
       AC.on('view', (v) => { if (v === 'carte' && nuPage) requestAnimationFrame(() => { const c = AC.CRUS.find((x) => x.id === etat.boisson); nuPage(c ? pageDe(c.id) : 0, false); }); });
       if (AC.view === 'carte' && AC.table) AC.table.reveil();
     },

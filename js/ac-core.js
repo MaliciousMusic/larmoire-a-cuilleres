@@ -10,6 +10,34 @@
 
   AC.reduced = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
+  /* ---------- La langue : français, ou anglais ----------
+     Le script de <head> a choisi (?lang=, le petit menu de l'accueil, sinon la langue du téléphone) et, en anglais,
+     chargé le dictionnaire js/ac-en.js (window.AC_EN). Le texte français sert de clé :
+       AC.t('Ouvert aujourd’hui')            → 'Open today' en anglais, le français sinon (ou s'il manque)
+       AC.t('Bienvenue {nom} !', { nom })     → les {…} reçoivent leur valeur
+     Les textes d'index.html sont traduits au démarrage (AC.traduirePage, en bas de ce fichier). */
+  const racineDoc = typeof document !== 'undefined' && document.documentElement;
+  AC.lang = racineDoc && racineDoc.lang === 'en' ? 'en' : 'fr';
+  AC.en = AC.lang === 'en';
+  const EN = (AC.en && typeof window !== 'undefined' && window.AC_EN) || {};
+  const aCle = (k) => Object.prototype.hasOwnProperty.call(EN, k);
+  AC.t = function (fr, vars) {
+    let s = AC.en && aCle(fr) ? EN[fr] : fr;
+    if (vars) s = String(s).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : m));
+    return s;
+  };
+  /** Change de langue : on la garde, et on recharge (tout se reconstruit dans la nouvelle langue ; même onglet) */
+  AC.choisirLangue = function (l) {
+    let garde = false;
+    try { localStorage.setItem('ac:lang', JSON.stringify(l)); garde = true; } catch (e) { /* navigation privée : dans l'adresse */ }
+    // (les autres réglages de l'adresse gardent leur forme : ?nointro, ?soir…)
+    const params = location.search.slice(1).split('&').filter((x) => x && !/^lang=/.test(x));
+    if (!garde) params.push('lang=' + l);
+    const url = location.pathname + (params.length ? '?' + params.join('&') : '') + location.hash;
+    // (une adresse identique à un # près ne recharge pas la page : on recharge nous-mêmes)
+    if (url === location.pathname + location.search + location.hash) location.reload(); else location.replace(url);
+  };
+
   /* ---------- Hasard déterministe (mulberry32) ---------- */
   AC.rng = function (seed) {
     let a = seed >>> 0;
@@ -189,7 +217,7 @@
   }), Promise.resolve());
 
   /* ---------- Formats ---------- */
-  const nfEUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+  const nfEUR = new Intl.NumberFormat(AC.en ? 'en-GB' : 'fr-FR', { style: 'currency', currency: 'EUR' });
   AC.fmtPrice = (n) => nfEUR.format(n);
   AC.pad = (n, l = 4) => String(n).padStart(l, '0');
 
@@ -235,21 +263,26 @@
   AC.emit = (ev, data) => (listeners[ev] || []).forEach((fn) => fn(data));
 
   /* ---------- L'ambiance : les animations décoratives sans fin (feuillages, vapeur, reflets…) ----------
-     Redessiner une scène SVG coûte cher, à chaque image : on ne les laisse pas tourner seules à 60 images/s.
-     Chacune appartient à une scène (l'élément qui doit être à l'écran) ; on les avance nous-mêmes, à leur
-     cadence : 12 images/s pour les mouvements lents (un rameau qui se balance y bouge de moins d'un dixième
-     de pixel par image : l'œil n'y voit rien), 24 pour ce qui file (le reflet qui passe sur les vitres).
-     Et seulement quand la scène se voit : son onglet est ouvert, elle est dans la fenêtre, la page est au
-     premier plan. Sinon elles s'arrêtent net, et ne coûtent plus rien.
-       AC.ambiance.anime(animation, scene, ips)  une animation Web sans fin (mise en pause, puis avancée par nous)
-       AC.ambiance.pilote(fn, scene, ips)        une fonction fn(t) qui dessine l'instant t (ms, le temps de la
-                                                 scène) ; ips : un nombre, ou une fonction de t (filer au bon moment)
-       AC.ambiance.balance(els, scene, opts)     des éléments SVG qui se balancent, par leur attribut transform
-                                                 (moins coûteux à redessiner qu'une animation Web de rotation)
-       AC.ambiance.visible(scene)                la scène se voit-elle ? (pour les petites vies à minuteur)  */
+     Deux façons de les faire tourner, et seulement quand leur scène se voit (son onglet est ouvert, elle est dans
+     la fenêtre, la page est au premier plan) ; sinon elles s'arrêtent net et ne coûtent plus rien.
+     1) Sur un calque (AC.monde, plus bas) : l'élément est seul sur son <svg>, l'animation (transform, opacity) est
+        jouée par le compositeur, à 60 images/s, sans jamais repeindre le dessin. C'est la règle.
+          AC.ambiance.joue(animation, scene)        une animation Web (sans fin, ou un geste), sur un calque : en pause hors de
+                                                    vue (sinon Chrome la fait tourner sur le fil principal, onglet caché ou non)
+          AC.ambiance.lache(animation)              ne plus la suivre
+          AC.ambiance.balance(calques, scene, opts)  des calques qui se balancent (rotation autour d'un pivot)
+     2) Dans le dessin (ce qui ne peut pas sortir sur un calque) : on l'avance nous-mêmes, à petite cadence
+        (12 images/s) : chaque image repeint le dessin, c'est cher.
+          AC.ambiance.anime(animation, scene, ips)  une animation Web sans fin (mise en pause, puis avancée par nous)
+          AC.ambiance.pilote(fn, scene, ips)        une fonction fn(t) qui dessine l'instant t (ms, le temps de la
+                                                    scène) ; ips : un nombre, ou une fonction de t
+     AC.ambiance.visible(scene) : la scène se voit-elle ? (pour les petites vies à minuteur) */
   AC.ambiance = (function () {
-    const scenes = new Map(); // élément → { vue, dedans, items : Map<Animation | fonction, { ips, der, t }> }
-    let vue = null, minuteur = 0, raf = 0;
+    const scenes = new Map(); // élément → { vue, dedans, items : Map<Animation | fonction, { ips, der, t }>, natifs : Set<Animation> }
+    // l'onglet ouvert, et l'instant où il a fini d'arriver (il entre en fondu). Une animation relancée pendant que son
+    // élément est invisible (opacité 0, hors de l'écran, sans taille), Chrome la juge « sans changement visible » et la
+    // fait tourner ensuite sur le fil principal, à chaque image : on attend donc que l'onglet soit là pour la relancer.
+    let vue = null, stable = 0, minuteur = 0, raf = 0;
     const io = window.IntersectionObserver ? new IntersectionObserver((es) => {
       es.forEach((e) => { const s = scenes.get(e.target); if (s) s.dedans = e.isIntersecting; });
       relance();
@@ -258,13 +291,26 @@
       let s = scenes.get(el);
       if (!s) {
         const v = el.closest && el.closest('.view');
-        s = { vue: v ? v.id : null, dedans: !io, items: new Map() };
+        s = { vue: v ? v.id : null, dedans: !io, items: new Map(), natifs: new Set() };
         scenes.set(el, s);
         if (io) io.observe(el);
       }
       return s;
     }
-    const active = (s) => s.dedans && (!s.vue || s.vue === vue);
+    const active = (s) => s.dedans && (!s.vue || (s.vue === vue && performance.now() >= stable)) && !document.hidden;
+    // les animations du compositeur : jouées quand leur scène se voit, en pause sinon
+    function bascule() {
+      scenes.forEach((s, el) => {
+        if (!s.natifs.size) return;
+        const on = el.isConnected && active(s);
+        s.natifs.forEach((a) => {
+          const t = a.effect && a.effect.target;
+          if (a.playState === 'idle' || (t && !t.isConnected)) { s.natifs.delete(a); return; }
+          if (on && a.playState === 'paused') a.play();
+          else if (!on && a.playState === 'running') a.pause();
+        });
+      });
+    }
     function image(now) {
       raf = 0;
       if (document.hidden) return;
@@ -291,14 +337,34 @@
       if (ips) minuteur = setTimeout(demande, 750 / ips);
     }
     function demande() { minuteur = 0; if (!raf) raf = requestAnimationFrame(image); }
-    function relance() { if (!minuteur && !raf) demande(); }
+    function relance() { bascule(); if (!minuteur && !raf) demande(); }
     function pilote(fn, el, ips = 24) {
       scene(el).items.set(fn, { ips, der: 0, t: 0 });
       relance();
     }
-    AC.on('view', (v) => { vue = v; relance(); });
+    function joue(a, el) {
+      const t = el || (a && a.effect && a.effect.target);
+      if (!a || !t) return a;
+      const s = scene(t);
+      s.natifs.add(a);
+      // (un geste fini ou annulé n'est plus suivi ; une animation sans fin, toujours)
+      if (a.finished) a.finished.then(() => s.natifs.delete(a), () => s.natifs.delete(a));
+      if (!(t.isConnected && active(s))) a.pause();
+      return a;
+    }
+    let stableT = 0;
+    AC.on('view', (v) => {
+      vue = v;
+      stable = performance.now() + 460; // (la transition d'un onglet : .38 s)
+      relance();
+      clearTimeout(stableT);
+      stableT = setTimeout(relance, 480);
+    });
     document.addEventListener('visibilitychange', relance);
     return {
+      joue,
+      /** l'animation n'est plus suivie par l'ambiance (on la gère soi-même) */
+      lache(a) { scenes.forEach((sc) => sc.natifs.delete(a)); },
       anime(a, el, ips = 12) {
         const t = el || (a && a.effect && a.effect.target);
         if (!a || !t) return a;
@@ -309,8 +375,18 @@
       },
       pilote,
       /** de `de` à `a` degrés et retour, adouci, en periode(i) ms ; decale(i) : l'avance de l'élément i (ms) ;
-          pivot(i) : [x, y] (repère de l'élément), sinon son origine */
+          pivot(i) : [x, y] dans le repère du dessin (sinon l'origine de l'élément).
+          Des calques (AC.monde) : le compositeur les balance ; des éléments SVG : leur attribut transform, à 12 images/s. */
       balance(els, el, { de, a, periode, decale = () => 0, pivot = () => null }) {
+        if (els.length && els[0] && els[0].svg) {
+          return els.map((c, i) => {
+            const o = pivot(i) || c.origine;
+            if (o) c.svg.style.transformOrigin = `${AC.f(o[0] - c.x)}px ${AC.f(o[1] - c.y)}px`;
+            const P = periode(i);
+            return joue(c.svg.animate([{ transform: `rotate(${de}deg)` }, { transform: `rotate(${a}deg)` }],
+              { duration: P, delay: -((decale(i) % (2 * P)) + 2 * P) % (2 * P), direction: 'alternate', iterations: Infinity, easing: 'cubic-bezier(.37,0,.63,1)' }), el);
+          });
+        }
         const P = els.map((_, i) => periode(i)), D = els.map((_, i) => decale(i)), O = els.map((_, i) => pivot(i)), der = els.map(() => '');
         pilote((t) => els.forEach((g, i) => {
           const u = (t + D[i]) / P[i], k = Math.floor(u), x = u - k;
@@ -319,6 +395,7 @@
           der[i] = v;
           g.setAttribute('transform', O[i] ? `rotate(${v} ${O[i][0]} ${O[i][1]})` : `rotate(${v})`);
         }), el, 12);
+        return null;
       },
       visible(el) {
         if (document.hidden) return false;
@@ -327,6 +404,147 @@
       },
     };
   })();
+
+  /* ---------- Un temps mort : requestIdleCallback, ou (Safari ne l'a pas) un moment sans toucher ni défilement ----------
+     AC.ric(fn, { timeout }) : fn quand le téléphone ne fait rien d'autre ; au plus tard après timeout ms */
+  let dernierGeste = -1e9;
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach((t) => addEventListener(t, () => { dernierGeste = performance.now(); }, { capture: true, passive: true }));
+    document.addEventListener('scroll', () => { dernierGeste = performance.now(); }, { capture: true, passive: true });
+  }
+  AC.ric = function (fn, { timeout = 3000 } = {}) {
+    if (window.requestIdleCallback) return requestIdleCallback(fn, { timeout });
+    const t0 = performance.now();
+    const essai = () => {
+      const calme = performance.now() - dernierGeste > 900;
+      if (calme || performance.now() - t0 > timeout) fn({ didTimeout: !calme, timeRemaining: () => (calme ? 12 : 0) });
+      else setTimeout(essai, 350);
+    };
+    return setTimeout(essai, 250);
+  };
+
+  /** fn(), une fois, dès que el est affiché (mesurable) : tout de suite, ou quand son onglet s'ouvre */
+  AC.quandAffiche = function (el, fn) {
+    const ok = () => el.isConnected && el.getBoundingClientRect().width > 0;
+    if (ok() || !window.ResizeObserver) { fn(); return; }
+    // (fn à l'image suivante : sortir des calques pendant le rappel relancerait les autres observateurs dans la même image)
+    const ro = new ResizeObserver(() => { if (ok()) { ro.disconnect(); requestAnimationFrame(fn); } });
+    ro.observe(el);
+  };
+
+  /* ---------- Les calques : un morceau d'un dessin SVG sur sa propre couche du compositeur ----------
+     Dans un grand dessin SVG, tout ce qui bouge oblige le navigateur à repeindre le dessin, sur le fil principal,
+     à chaque image : c'est ce qui essouffle un téléphone. Sorti sur son propre <svg> (un calque), posé exactement
+     au même endroit et dans le même ordre, un élément s'anime (transform, opacity) sur le compositeur : 60 images/s,
+     et le dessin n'est plus repeint.
+       const m = AC.monde(svg)       le plan des calques d'un dessin : un <div> juste après lui, qui suit son cadrage
+                                     (viewBox, preserveAspectRatio, taille ; le <svg> doit remplir son parent, qui est
+                                     positionné) ; dans le plan, 1 unité du dessin = 1 px CSS
+       const c = m.calque(el, opts)  sort el sur un calque, avec ses parents en coquilles (mêmes attributs : transform,
+                                     clip-path, filter…) ; c.svg : le calque à animer, c.x, c.y : son coin (unités du
+                                     dessin), c.coque(g) : la coquille d'un parent g, c.rentre() : tout remettre en place.
+                                     opts.marge (unités), opts.fige (taille fixe, pour un dessin qui change à chaque image),
+                                     opts.cible (il reçoit les touchers), opts.boite ([x, y, w, h] :
+                                     la place du calque, sinon celle de l'élément), opts.enveloppe (le <svg> dans un <div>,
+                                     c.boite, qu'on peut découper (clip-path) ou animer à part)
+     Les calques se rangent dans l'ordre du dessin (un repère reste à la place de chaque élément sorti) ; un
+     « mix-blend-mode » d'un parent passe sur le calque (il se mélange avec ce qui est dessous, comme avant). */
+  AC.monde = function (svg) {
+    const plan = document.createElement('div');
+    plan.className = 'ac-monde';
+    // (l'essentiel en style : le plan marche aussi sans la feuille de style de l'appli, dans les pages du labo)
+    Object.assign(plan.style, { position: 'absolute', left: '0', top: '0', width: '0', height: '0', transformOrigin: '0 0', pointerEvents: 'none' });
+    const parent = svg.parentNode;
+    if (parent && getComputedStyle(parent).position === 'static') parent.style.position = 'relative';
+    svg.after(plan);
+    const calques = []; // { noeud (le calque, ou son enveloppe), marque }
+    function cadre() {
+      const vb = svg.viewBox && svg.viewBox.baseVal, W = svg.clientWidth, H = svg.clientHeight;
+      if (!vb || !vb.width || !vb.height || !W || !H) return;
+      const par = svg.preserveAspectRatio.baseVal, al = par.align;
+      let sx = W / vb.width, sy = H / vb.height;
+      if (al !== 1) { const s = par.meetOrSlice === 2 ? Math.max(sx, sy) : Math.min(sx, sy); sx = sy = s; }
+      const fx = al < 2 ? 0 : [0, 0.5, 1][(al - 2) % 3], fy = al < 2 ? 0 : [0, 0.5, 1][Math.floor((al - 2) / 3)];
+      const tx = (W - vb.width * sx) * fx - vb.x * sx, ty = (H - vb.height * sy) * fy - vb.y * sy;
+      plan.style.transform = `matrix(${sx}, 0, 0, ${sy}, ${tx}, ${ty})`;
+    }
+    cadre();
+    if (window.ResizeObserver) new ResizeObserver(cadre).observe(svg);
+    if (window.MutationObserver) new MutationObserver(cadre).observe(svg, { attributes: true, attributeFilter: ['viewBox', 'preserveAspectRatio'] });
+    /** la matrice de el (son repère) vers le repère du dessin, par ses attributs transform */
+    function versDessin(el) {
+      let m = new DOMMatrix();
+      for (let n = el; n && n !== svg; n = n.parentNode) {
+        const tl = n.transform && n.transform.baseVal, c = tl && tl.numberOfItems ? tl.consolidate() : null;
+        if (c) { const x = c.matrix; m = new DOMMatrix([x.a, x.b, x.c, x.d, x.e, x.f]).multiply(m); }
+      }
+      return m;
+    }
+    function calque(el, { marge = 2, cible = false, boite = null, enveloppe = false, fige = false } = {}) {
+      let x, y, w, h;
+      const m = versDessin(el);
+      if (boite) [x, y, w, h] = boite;
+      else {
+        const b = el.getBBox();
+        const pts = [[b.x, b.y], [b.x + b.width, b.y], [b.x, b.y + b.height], [b.x + b.width, b.y + b.height]].map(([px, py]) => m.transformPoint(new DOMPoint(px, py)));
+        x = Math.min(...pts.map((p) => p.x)); y = Math.min(...pts.map((p) => p.y));
+        w = Math.max(...pts.map((p) => p.x)) - x; h = Math.max(...pts.map((p) => p.y)) - y;
+      }
+      x = Math.floor(x - marge); y = Math.floor(y - marge); w = Math.ceil(w + 2 * marge + 1); h = Math.ceil(h + 2 * marge + 1);
+      const c = AC.svg('svg', { class: enveloppe ? 'ac-dedans' : 'ac-calque', viewBox: `${x} ${y} ${w} ${h}`, width: w, height: h, 'aria-hidden': 'true', focusable: 'false' });
+      // (sa taille et sa place en style : aucune règle de la page, « .hote svg { width: 100% } » par exemple, ne les change)
+      // (fige : un calque dont le dessin change à chaque image, par le fil principal (les bras de Mallo) : sa propre
+      // couche, toujours (sinon il serait peint avec ce qui est dessous, et tout serait repeint avec lui), de taille
+      // fixe (sa boîte coupe ce qui déborde : ses bornes ne bougent pas avec lui)
+      Object.assign(c.style, { position: 'absolute', width: w + 'px', height: h + 'px', maxWidth: 'none', right: 'auto', bottom: 'auto', overflow: fige ? 'hidden' : 'visible', willChange: fige ? 'transform' : '' });
+      let noeud = c;
+      if (enveloppe) {
+        noeud = document.createElement('div');
+        noeud.className = 'ac-calque ac-enveloppe';
+        Object.assign(noeud.style, { position: 'absolute', width: w + 'px', height: h + 'px', right: 'auto', bottom: 'auto' });
+        Object.assign(c.style, { left: '0px', top: '0px' });
+        noeud.appendChild(c);
+      }
+      noeud.style.left = x + 'px';
+      noeud.style.top = y + 'px';
+      // les parents, du plus haut au plus proche, en coquilles vides qui gardent leurs attributs
+      const chaine = [];
+      for (let n = el.parentNode; n && n !== svg; n = n.parentNode) chaine.unshift(n);
+      const coques = new Map();
+      let dans = c;
+      chaine.forEach((p) => {
+        const g = AC.svg('g', null, dans);
+        [...p.attributes].forEach((at) => { if (at.name !== 'id') g.setAttribute(at.name, at.value); });
+        const mix = p.style && p.style.mixBlendMode;
+        if (mix && mix !== 'normal') { noeud.style.mixBlendMode = mix; g.style.mixBlendMode = ''; }
+        coques.set(p, g);
+        dans = g;
+      });
+      if (el.style && el.style.mixBlendMode && el.style.mixBlendMode !== 'normal') noeud.style.mixBlendMode = el.style.mixBlendMode;
+      const marque = document.createComment('calque');
+      el.replaceWith(marque);
+      dans.appendChild(el);
+      if (cible) el.style.pointerEvents = 'auto';
+      // à sa place dans l'ordre du dessin : avant le premier calque dont le repère vient après le sien
+      const apres = calques.find((k) => marque.compareDocumentPosition(k.marque) & Node.DOCUMENT_POSITION_FOLLOWING);
+      plan.insertBefore(noeud, apres ? apres.noeud : null);
+      const k = { noeud, marque };
+      calques.push(k);
+      return {
+        svg: c, boite: enveloppe ? noeud : null, el, x, y, w, h,
+        coque: (p) => coques.get(p) || null,
+        rentre() {
+          if (!marque.parentNode) return;
+          marque.replaceWith(el);
+          if (cible) el.style.pointerEvents = '';
+          noeud.remove();
+          const i = calques.indexOf(k);
+          if (i >= 0) calques.splice(i, 1);
+        },
+      };
+    }
+    return { plan, calque, cadre, versDessin };
+  };
 
 
   /* ---------- Sons : un sound design léger, synthétisé (WebAudio, aucun fichier) ----------
@@ -484,7 +702,10 @@
       },
       open(c, o, t) { noise(c, o, t, { f: 380, f2: 1600, q: 0.9, a: 0.06, d: 0.18, v: 0.08 }); },
       close(c, o, t) { noise(c, o, t, { f: 1400, f2: 380, q: 0.9, a: 0.02, d: 0.15, v: 0.055 }); },
-      pop(c, o, t) { tone(c, o, t, { f: 520, f2: 1080, glide: 0.05, a: 0.003, d: 0.08, v: 0.08 }); },
+      pop(c, o, t, { m }) { // (m : il se pose sur cette note, MIDI)
+        const f = m ? midi(m) : 1080;
+        tone(c, o, t, { f: f * 0.48, f2: f, glide: 0.05, a: 0.003, d: m ? 0.13 : 0.08, v: 0.08 });
+      },
       up(c, o, t) { tone(c, o, t, { f: 900, f2: 1200, glide: 0.03, a: 0.002, d: 0.04, v: 0.045 }); },
       down(c, o, t) { tone(c, o, t, { f: 1100, f2: 820, glide: 0.03, a: 0.002, d: 0.04, v: 0.045 }); },
       page(c, o, t) { // une page de la carte qu'on tourne
@@ -537,19 +758,22 @@
         tone(c, o, t, { f: midi(m) * 3.01, a: 0.001, d: 0.05, v: 0.008 });
       },
 
-      // --- la vaisselle
-      clink(c, o, t, { v = 1 }) { // la tasse posée sur sa soucoupe
-        strike(c, o, t, rnd(1420, 1560), 'ceramic', { d: 0.22, v: 0.055 * v });
-        strike(c, o, t + 0.012, rnd(2250, 2400), 'ceramic', { d: 0.14, v: 0.02 * v });
+      // --- la vaisselle (m : accordée sur cette note, MIDI — la tablée du brunch en fait une mélodie ; tenue : sa
+      // résonance, en multiple)
+      clink(c, o, t, { v = 1, m, tenue = 1 }) { // la tasse posée sur sa soucoupe
+        const f = m ? midi(m) : rnd(1420, 1560);
+        strike(c, o, t, f, 'ceramic', { d: (m ? 0.34 : 0.22) * tenue, v: 0.055 * v });
+        strike(c, o, t + 0.012, m ? f * 1.5 : rnd(2250, 2400), 'ceramic', { d: 0.14, v: (m ? 0.012 : 0.02) * v }); // (accordée : sa quinte)
         noise(c, o, t, { f: 3400, q: 1.2, a: 0.001, d: 0.02, v: 0.02 * v });
       },
-      plate(c, o, t) { // une assiette qu'on pose sur la table
-        strike(c, o, t, 980, 'ceramic', { d: 0.3, v: 0.045 });
+      plate(c, o, t, { m, tenue = 1 }) { // une assiette qu'on pose sur la table
+        strike(c, o, t, m ? midi(m) : 980, 'ceramic', { d: (m ? 0.4 : 0.3) * tenue, v: 0.045 });
         strike(c, o, t, 330, 'wood', { d: 0.07, v: 0.03 });
       },
-      spoon(c, o, t) { // la petite cuillère posée sur la soucoupe
-        strike(c, o, t, rnd(3100, 3400), 'metal', { d: 0.16, v: 0.03 });
-        strike(c, o, t + 0.05, rnd(2600, 2800), 'metal', { d: 0.1, v: 0.014 });
+      spoon(c, o, t, { m }) { // la petite cuillère posée sur la soucoupe
+        const f = m ? midi(m) : rnd(3100, 3400);
+        strike(c, o, t, f, 'metal', { d: m ? 0.3 : 0.16, v: 0.03 });
+        strike(c, o, t + 0.05, m ? f * 2 : rnd(2600, 2800), 'metal', { d: 0.1, v: 0.014 }); // (accordée : son octave)
       },
       stir(c, o, t, { n = 3, per = 0.34 }) { // la cuillère tourne dans le chocolat : liquide + petits tintements
         for (let k = 0; k < n; k++) {
@@ -739,6 +963,8 @@
     return {
       play, channel, unlock, latency,
       supported: !!ACtx,
+      /** le même son, dans un autre contexte (un rendu hors ligne, pour l'écouter en fichier) : t en secondes */
+      rendu(c, dst, name, t, opts = {}) { if (SOUNDS[name]) SOUNDS[name](c, dst, t, opts); },
       pop: () => play('pop'),
       ding: () => play('ding'),
       tick: () => play('key'),
@@ -753,4 +979,58 @@
       },
     };
   })();
+
+  /* ---------- La page en anglais ----------
+     Au démarrage (ce script est le premier en bas de page : tout le HTML est lu), en anglais seulement :
+       - un élément [data-t] est traduit en entier (son HTML français, espaces réduits, est la clé) ;
+       - sinon chaque bout de texte, et les attributs aria-label, aria-roledescription, placeholder, title, alt ;
+       - les prix (« 5,20 € » → « €5.20 », « 23 € » → « €23 »), les heures (« 13h – 19h » → « 1pm – 7pm ») et les
+         nombres à virgule (« 4,6 » → « 4.6 ») se convertissent seuls.
+     Le titre de la page et sa description aussi. Puis la page se montre (html.traduit). */
+  const net = (s) => String(s).replace(/\s+/g, ' ').trim();
+  AC.heureEn = (h, m) => { const hh = h % 12 || 12; return hh + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 || h === 24 ? 'am' : 'pm'); };
+  /** Les formats qui se traduisent seuls : un prix, une heure ou une plage d'heures à la française */
+  function formatEn(s) {
+    let m = /^(\+ )?(\d+)(?:,(\d{2}))? €$/.exec(s);
+    if (m) return (m[1] || '') + '€' + m[2] + (m[3] ? '.' + m[3] : '');
+    if (/^\d+,\d+$/.test(s)) return s.replace(',', '.'); // une note, « 4,6 »
+    const h = (x) => { const r = /^(\d{1,2})h(\d{2})?$/.exec(x); return r ? AC.heureEn(+r[1], +(r[2] || 0)) : null; };
+    if (h(s)) return h(s);
+    m = /^(\d{1,2}h(?:\d{2})?) – (\d{1,2}h(?:\d{2})?)$/.exec(s);
+    if (m && h(m[1]) && h(m[2])) return h(m[1]) + ' – ' + h(m[2]);
+    return null;
+  }
+  AC.traduireTexte = (s) => { const k = net(s); return aCle(k) ? EN[k] : formatEn(k); };
+  AC.traduirePage = function (racine) {
+    if (!AC.en || !racine || !document.createTreeWalker) return;
+    racine.querySelectorAll('[data-t]').forEach((el) => {
+      const k = net(el.innerHTML);
+      if (aCle(k)) el.innerHTML = EN[k];
+      el.removeAttribute('data-t');
+    });
+    ['aria-label', 'aria-roledescription', 'placeholder', 'title', 'alt'].forEach((a) => racine.querySelectorAll(`[${a}]`).forEach((el) => {
+      const v = AC.traduireTexte(el.getAttribute(a));
+      if (v != null) el.setAttribute(a, v);
+    }));
+    const w = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.parentNode && n.parentNode.closest && n.parentNode.closest('script, style, .sprite') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    });
+    const textes = [];
+    while (w.nextNode()) textes.push(w.currentNode);
+    textes.forEach((n) => {
+      const v = n.nodeValue.trim() && AC.traduireTexte(n.nodeValue);
+      if (v == null || v === false) return;
+      const avant = /^\s*/.exec(n.nodeValue)[0], apres = /\s*$/.exec(n.nodeValue)[0];
+      n.nodeValue = avant + v + apres;
+    });
+  };
+  if (racineDoc && typeof document.querySelector === 'function' && document.body) {
+    if (AC.en) {
+      document.title = AC.t(document.title);
+      const md = document.querySelector('meta[name="description"]'), desc = md && md.getAttribute('content');
+      if (md) md.setAttribute('content', AC.t(desc));
+      try { AC.traduirePage(document.body); } catch (e) { console.warn('traduction', e); }
+    }
+    racineDoc.classList.add('traduit');
+  }
 })();

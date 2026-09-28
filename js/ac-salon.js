@@ -487,7 +487,7 @@
       const shade = rect(door, x, -183, w, 85, '#120A07', { opacity: 0, 'pointer-events': 'none' });
       door.style.transformBox = 'fill-box';
       door.style.transformOrigin = i ? '100% 50%' : '0% 50%';
-      out.doors.push({ g: door, sweep, shade, x, w, i });
+      out.doors.push({ g: door, sweep, shade, x, w, i, verre: [gx, gy, gw, gh] });
     });
     // la tranche des portes, visible quand elles s'entrouvrent (ouverture : 0.78)
     out.doors.forEach((d) => {
@@ -1234,7 +1234,7 @@
     // opts.cadre : le cadrage (l'onglet Nous l'agrandit : le texte du conte en haut, le comptoir en bas)
     const svg = S('svg', {
       viewBox: opts.cadre || '0 0 400 520', class: 'salon', preserveAspectRatio: 'xMidYMid meet', role: 'group',
-      'aria-label': "Le salon de thé : la vieille armoire vitrée et ses livres, la chaise bistrot en bois courbé, le guéridon menthe et la vaisselle ancienne, sous la suspension dorée",
+      'aria-label': AC.t("Le salon de thé : la vieille armoire vitrée et ses livres, la chaise bistrot en bois courbé, le guéridon menthe et la vaisselle ancienne, sous la suspension dorée"),
     });
     svg.style.overflow = 'visible';
     svg.style.webkitTapHighlightColor = 'transparent';
@@ -1296,21 +1296,75 @@
       wisps.forEach((w) => { w.style.opacity = '0.34'; });
     }
 
+    /* ---------- les calques : ce qui bouge sans fin sort du dessin (AC.monde), le compositeur l'anime ----------
+       la lumière de la suspension (elle respire), la suspension (elle oscille), les volutes de la tasse */
+    let cal = null;
+    function calques() {
+      if (cal) return cal;
+      const monde = AC.monde(svg);
+      const volutes = wisps.map((w) => {
+        const bb = w.getBBox(), c = monde.calque(w, { marge: 2 });
+        c.svg.style.transformOrigin = `${f(bb.x + bb.width / 2 - c.x)}px ${f(bb.y + bb.height - c.y)}px`; // (50 % 100 % de la volute)
+        w.setAttribute('opacity', 1);
+        c.svg.style.opacity = 0;
+        return c;
+      });
+      const lampe = monde.calque(lamp.swing, { marge: 4, cible: true });
+      lampe.svg.style.transformOrigin = `${f(LAMP.x - lampe.x)}px ${f(-60 - lampe.y)}px`;
+      const lumiere = monde.calque(L.light, { marge: 0 });
+      // le reflet qui passe sur les vitres de l'armoire : une copie, sur un calque borné à sa vitre (l'enveloppe coupe ;
+      // le reflet glisse dedans, sur le compositeur). L'original reste dans la porte, pour quand on l'ouvre.
+      const reflets = arm.doors.map((d) => {
+        const vitre = d.sweep.parentNode, m = monde.versDessin(vitre), [gx, gy, gw, gh] = d.verre;
+        const copie = d.sweep.cloneNode(true);
+        copie.removeAttribute('class');
+        copie.setAttribute('opacity', 1);
+        vitre.appendChild(copie);
+        const a = m.transformPoint(new DOMPoint(gx, gy)), b = m.transformPoint(new DOMPoint(gx + gw, gy + gh));
+        const X0 = Math.min(a.x, b.x), Y0 = Math.min(a.y, b.y), X1 = Math.max(a.x, b.x), Y1 = Math.max(a.y, b.y);
+        const c = monde.calque(copie, { enveloppe: true, marge: 0, boite: [X0, Y0, X1 - X0, Y1 - Y0] });
+        const coque = c.coque(vitre);
+        if (coque) coque.removeAttribute('clip-path'); // (la coupe de la vitre : celle de l'enveloppe, qui ne bouge pas)
+        c.boite.style.clipPath = `inset(${f(Y0 - c.y)}px ${f(c.x + c.w - X1)}px ${f(c.y + c.h - Y1)}px ${f(X0 - c.x)}px)`;
+        c.svg.style.opacity = 0;
+        c.dx = f(78 * m.a); c.dy = f(78 * m.b); // (le trajet du reflet : 78 unités de la porte)
+        return c;
+      });
+      // la page qui tourne : sur son calque figé (redessiné seul, image par image, pendant qu'elle tourne), à la taille
+      // de tout son parcours
+      const pg = trunk.page, mp = monde.versDessin(pg);
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      pg.setAttribute('display', 'inline');
+      for (let k = 0; k <= 16; k++) {
+        pg.setAttribute('d', trunk.pageAt((k / 16) * Math.PI));
+        const bb = pg.getBBox();
+        [[bb.x, bb.y], [bb.x + bb.width, bb.y], [bb.x, bb.y + bb.height], [bb.x + bb.width, bb.y + bb.height]].forEach(([x, y]) => {
+          const q = mp.transformPoint(new DOMPoint(x, y));
+          x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y);
+        });
+      }
+      pg.setAttribute('display', 'none');
+      const page = monde.calque(pg, { fige: true, marge: 2, boite: [x0, y0, x1 - x0, y1 - y0] });
+      cal = { monde, volutes, lampe, lumiere, reflets, page };
+      return cal;
+    }
+    const volute = (i) => (cal ? cal.volutes[i].svg : wisps[i]);
+
     /** La vapeur : trois volutes qui montent, se tordent et s'effacent */
     function steamLoop() {
       wisps.forEach((w, i) => {
-        running.add(AC.ambiance.anime(w.animate([
-          { opacity: 0, transform: 'translate(0,3px) scale(.7,.75)' },
+        running.add(AC.ambiance.joue(volute(i).animate([
+          { opacity: 0, transform: 'translate(0px, 3px) scale(.7, .75)' },
           { opacity: 0.6, offset: 0.3 },
-          { opacity: 0, transform: `translate(${i % 2 ? 3 : -2.5}px,-15px) scale(1.2,1.3)` },
-        ], { duration: 2700 + i * 420, delay: i * 820, iterations: Infinity, easing: 'ease-out' }), host));
+          { opacity: 0, transform: `translate(${i % 2 ? 3 : -2.5}px, -15px) scale(1.2, 1.3)` },
+        ], { duration: 2700 + i * 420, delay: i * 820, iterations: Infinity, easing: 'ease-out', fill: 'backwards' }), host));
       });
     }
     function steamPuff() {
-      wisps.forEach((w, i) => w.animate([
-        { opacity: 0, transform: 'translate(0,2px) scale(.8,.8)' },
+      wisps.forEach((w, i) => volute(i).animate([
+        { opacity: 0, transform: 'translate(0px, 2px) scale(.8, .8)' },
         { opacity: 0.95, offset: 0.25 },
-        { opacity: 0, transform: `translate(${i % 2 ? 4 : -3}px,-22px) scale(1.5,1.6)` },
+        { opacity: 0, transform: `translate(${i % 2 ? 4 : -3}px, -22px) scale(1.5, 1.6)` },
       ], { duration: 1400 + i * 160, delay: i * 90, easing: 'ease-out', composite: 'replace' }));
     }
 
@@ -1326,12 +1380,17 @@
     }
     /** Un reflet passe sur les vitres de l'armoire */
     function sheen() {
-      arm.doors.forEach((d, i) => d.sweep.animate([
-        { opacity: 0, transform: 'translateX(0)' },
-        { opacity: 0.2, offset: 0.3 },
-        { opacity: 0.16, offset: 0.7 },
-        { opacity: 0, transform: 'translateX(78px)' },
-      ], { duration: 1700, delay: i * 240, easing: 'ease-in-out' }));
+      if (busy.has('armoire')) return; // (les portes s'ouvrent : leur reflet est déjà dans le geste)
+      arm.doors.forEach((d, i) => {
+        const c = cal && cal.reflets[i]; // (sur son calque, voir calques)
+        const a = (c ? c.svg : d.sweep).animate([
+          { opacity: 0, transform: 'translate(0px, 0px)' },
+          { opacity: 0.2, offset: 0.3 },
+          { opacity: 0.16, offset: 0.7 },
+          { opacity: 0, transform: c ? `translate(${c.dx}px, ${c.dy}px)` : 'translate(78px, 0px)' },
+        ], { duration: 1700, delay: i * 240, easing: 'ease-in-out' });
+        if (c) AC.ambiance.joue(a, host);
+      });
     }
 
     /* ---------- les cibles touchables ---------- */
@@ -1400,8 +1459,8 @@
       lampe() {
         sfx('tine', { m: 91, v: 0.45 });
         if (AC.reduced) return;
-        A(lamp.swing, [{ transform: 'rotate(0)' }, { transform: 'rotate(3deg)', offset: 0.18 }, { transform: 'rotate(-2.2deg)', offset: 0.42 }, { transform: 'rotate(1.2deg)', offset: 0.64 }, { transform: 'rotate(-.5deg)', offset: 0.84 }, { transform: 'rotate(0)' }], { duration: 2600, easing: 'ease-in-out', composite: 'add' });
-        A(L.light, [{ opacity: 1 }, { opacity: 0.78, offset: 0.1 }, { opacity: 1, offset: 0.2 }, { opacity: 0.88, offset: 0.3 }, { opacity: 1 }], { duration: 900, easing: 'linear' });
+        A(cal ? cal.lampe.svg : lamp.swing, [{ transform: 'rotate(0)' }, { transform: 'rotate(3deg)', offset: 0.18 }, { transform: 'rotate(-2.2deg)', offset: 0.42 }, { transform: 'rotate(1.2deg)', offset: 0.64 }, { transform: 'rotate(-.5deg)', offset: 0.84 }, { transform: 'rotate(0)' }], { duration: 2600, easing: 'ease-in-out', composite: 'add' });
+        A(cal ? cal.lumiere.svg : L.light, [{ opacity: 1 }, { opacity: 0.78, offset: 0.1 }, { opacity: 1, offset: 0.2 }, { opacity: 0.88, offset: 0.3 }, { opacity: 1 }], { duration: 900, easing: 'linear', composite: 'replace' });
       },
     };
     const targets = { tasse: table.cup, armoire: L.armoire, livre: trunk.g, chaise: thonet.g, chaise2: pink.g, theiere: table.teapot, lampe: lamp.swing };
@@ -1411,7 +1470,7 @@
         const el = targets[k];
         el.setAttribute('role', 'button');
         el.setAttribute('tabindex', opts.focusable === false ? '-1' : '0');
-        el.setAttribute('aria-label', labels[k]);
+        el.setAttribute('aria-label', AC.t(labels[k]));
         el.setAttribute('data-sfx', 'none');
         el.style.cursor = 'pointer';
         el.addEventListener('click', () => touch[k]());
@@ -1475,11 +1534,11 @@
         if (idleOn) return;
         idleOn = true;
         alive = true;
+        calques();
         steamLoop();
-        // la lumière respire (par petits paliers : presque rien à repeindre)
-        running.add(AC.ambiance.anime(L.light.animate([{ opacity: 0.86 }, { opacity: 1 }], { duration: 3600, direction: 'alternate', iterations: Infinity, easing: 'steps(14, jump-none)' }), host));
-        running.add(AC.ambiance.anime(room.appGlow.animate([{ opacity: 0.88 }, { opacity: 1 }], { duration: 2900, direction: 'alternate', iterations: Infinity, easing: 'steps(10, jump-none)' }), host));
-        running.add(AC.ambiance.anime(lamp.swing.animate([{ transform: 'rotate(-.45deg)' }, { transform: 'rotate(.45deg)' }], { duration: 5400, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }), host));
+        // la lumière respire, la suspension oscille : sur leurs calques (la lueur de l'armoire, elle, reste fixe)
+        running.add(AC.ambiance.joue(cal.lumiere.svg.animate([{ opacity: 0.86 }, { opacity: 1 }], { duration: 3600, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }), host));
+        running.add(AC.ambiance.joue(cal.lampe.svg.animate([{ transform: 'rotate(-.45deg)' }, { transform: 'rotate(.45deg)' }], { duration: 5400, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }), host));
         const loop = (fn, a, b) => later(a + Math.random() * (b - a), () => {
           if (!alive) return;
           if (!svg.isConnected) { loop(fn, a, b); return; }

@@ -86,7 +86,8 @@
   /* ---------- l'envol : chaque lettre du logo va se poser sur l'enseigne peinte ----------
      Même ordre de lettres dans le logo et sur l'enseigne (L ' A R M O I R E À C U I L L È R E S).
      On mesure l'encre de chaque lettre de l'enseigne (canvas), on la projette à l'écran, et on fait
-     voler une copie de la lettre du logo d'une boîte à l'autre, dans un calque au-dessus de tout. */
+     voler une copie de la lettre du logo d'une boîte à l'autre. Chaque copie est seule sur son <svg>
+     (deux, en fait : teal dessous, crème dessus qui apparaît) : le compositeur les fait voler. */
   const ink = new Map();
   function encre(ch, font, size) {
     const k = ch + '|' + size;
@@ -119,47 +120,55 @@
     });
     if (cibles.some((c) => !c)) { F.letters.forEach((g) => { g.style.opacity = ''; }); return; }
     F.letters.forEach((g) => { g.style.opacity = '0'; });
-    const calque = AC.svg('svg', { class: 'envol', 'aria-hidden': 'true' });
-    Object.assign(calque.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: 95, pointerEvents: 'none', overflow: 'visible' });
+    const calque = document.createElement('div');
+    calque.className = 'envol';
+    calque.setAttribute('aria-hidden', 'true');
     document.body.appendChild(calque);
+    // une copie de el, sur son propre <svg>, posée à l'écran pile sur lui (sa matrice d'écran) ; couleur : son remplissage
+    const copie = (el, dans, couleur) => {
+      const r = el.getBoundingClientRect(), m = el.getScreenCTM();
+      const sv = AC.svg('svg', { viewBox: `${r.left} ${r.top} ${Math.max(1, r.width)} ${Math.max(1, r.height)}`, width: Math.max(1, r.width), height: Math.max(1, r.height) }, dans);
+      const c = el.cloneNode(true);
+      c.removeAttribute('style');
+      c.removeAttribute('clip-path');
+      c.setAttribute('transform', `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`);
+      if (couleur) c.setAttribute('fill', couleur);
+      sv.appendChild(c);
+      return sv;
+    };
+    const boite = (r) => {
+      const d = document.createElement('div');
+      d.className = 'envol-l';
+      Object.assign(d.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+      calque.appendChild(d);
+      return d;
+    };
     const fin = [];
     lettres.forEach((l, i) => {
       const src = l.getBoundingClientRect(), c = cibles[i];
-      const clone = l.cloneNode(true);
-      clone.removeAttribute('style');
-      const m = l.getScreenCTM();
-      const g = AC.svg('g', {}, calque);
-      g.appendChild(clone);
-      clone.setAttribute('transform', `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`);
-      clone.setAttribute('fill', '#2E767E');
+      const d = boite(src);
+      copie(l, d, '#2E767E');
+      const creme = copie(l, d, '#F3EBDD');
+      creme.style.opacity = 0;
       // de la boîte de départ à la boîte d'arrivée (translation + échelle), avec un léger arc
       const sx = c.w / Math.max(1, src.width), sy = c.h / Math.max(1, src.height);
-      const dx = c.x - src.x * sx, dy = c.y - src.y * sy;
+      const dx = c.x - src.x, dy = c.y - src.y;
       const mid = `translate(${(dx * 0.5).toFixed(1)}px, ${(dy * 0.5 - 40 - (i % 3) * 12).toFixed(1)}px) scale(${((1 + sx) / 2).toFixed(3)}, ${((1 + sy) / 2).toFixed(3)}) rotate(${(i % 2 ? 8 : -8)}deg)`;
-      g.style.transformOrigin = '0 0';
-      const a = g.animate([
-        { transform: 'none' },
-        { transform: mid, offset: 0.55 },
-        { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})` },
-      ], { duration: 1150, delay: i * 45, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'forwards' });
-      clone.animate([{ fill: '#2E767E' }, { fill: '#F3EBDD' }], { duration: 1150, delay: i * 45, fill: 'forwards' });
+      const T = { duration: 1150, delay: i * 45, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'forwards' };
+      const a = d.animate([{ transform: 'none' }, { transform: mid, offset: 0.55 }, { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})` }], T);
+      creme.animate([{ opacity: 0 }, { opacity: 1 }], { ...T, easing: 'linear' });
       fin.push(a.finished.then(() => {
         F.letters[i].style.opacity = '';
-        g.remove();
+        d.remove();
         AC.sfx.play('letter', { m: [72, 74, 76, 79, 81, 84][i % 6] + (i > 12 ? 5 : 0), gain: 0.6 });
       }).catch(() => {}));
     });
     if (spoon) { // la cuillère file vers l'enseigne drapeau
-      const s = spoon.cloneNode(true);
-      const m = spoon.getScreenCTM();
-      const g = AC.svg('g', {}, calque);
-      g.appendChild(s);
-      s.setAttribute('transform', `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`);
-      s.removeAttribute('clip-path');
-      const plq = AC.facade.targets.flag.getBoundingClientRect(), sb = spoon.getBoundingClientRect();
+      const sb = spoon.getBoundingClientRect(), plq = AC.facade.targets.flag.getBoundingClientRect();
+      const d = boite(sb);
+      copie(spoon, d, null);
       const k = (plq.height * 0.5) / Math.max(1, sb.height);
-      g.style.transformOrigin = '0 0';
-      g.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${(plq.x + plq.width / 2 - (sb.x + sb.width / 2) * k).toFixed(1)}px, ${(plq.y + plq.height * 0.5 - (sb.y + sb.height / 2) * k).toFixed(1)}px) scale(${k.toFixed(4)})`, opacity: 0 }], { duration: 1200, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'forwards' });
+      d.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${(plq.x + plq.width / 2 - sb.x - (sb.width * k) / 2).toFixed(1)}px, ${(plq.y + plq.height * 0.5 - sb.y - (sb.height * k) / 2).toFixed(1)}px) scale(${k.toFixed(4)})`, opacity: 0 }], { duration: 1200, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'forwards' });
     }
     Promise.all(fin).then(() => setTimeout(() => calque.remove(), 200));
   }
@@ -209,7 +218,7 @@
         resolve(opts);
       };
 
-      let lance = false;
+      let lance = false, cl = null; // (cl : les calques des lettres)
       async function jouer() {
         if (lance) return;
         lance = true;
@@ -219,8 +228,9 @@
         if (AC.reduced) { svg.style.opacity = '1'; await AC.wait(500); partir({ letters: false }); return; }
         svg.style.transition = 'opacity .3s ease';
         svg.style.opacity = '1';
-        // tout se cache, puis se dessine
-        lettres.forEach((l) => { l.style.opacity = '0'; });
+        // tout se cache, puis se dessine ; chaque lettre sur son calque (elle éclôt sur le compositeur)
+        const monde = AC.monde(svg);
+        cl = lettres.map((l) => { const c = monde.calque(l, { marge: 6 }); c.svg.style.opacity = '0'; c.svg.style.transformOrigin = '50% 90%'; return c.svg; });
         if (spoon) {
           const [bx, by, bw, bh] = bbox || [0, 0, 1008, 604];
           const clipId = AC.uid('sp');
@@ -232,10 +242,7 @@
           if (skip) return;
         }
         for (let i = 0; i < lettres.length && !skip; i++) {
-          const l = lettres[i];
-          l.style.transformBox = 'fill-box';
-          l.style.transformOrigin = '50% 90%';
-          l.animate([{ opacity: 0, transform: 'translateY(18%) scale(.5) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'forwards' });
+          cl[i].animate([{ opacity: 0, transform: 'translateY(18%) scale(.5) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'forwards' });
           const [m, d] = VALSE[i % VALSE.length];
           AC.sfx.play('tine', { m });
           // la mesure commence : la basse, puis le « pa-pa » des 2e et 3e temps
@@ -263,7 +270,7 @@
       el.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.splash-entrer') || !btn.disabled) return;
         skip = true;
-        lettres.forEach((l) => { l.getAnimations().forEach((a) => a.finish()); l.style.opacity = '1'; });
+        (cl || lettres).forEach((l) => { l.getAnimations().forEach((a) => a.finish()); l.style.opacity = '1'; });
         partir({ letters: false });
       });
       // son coupé : l'ouverture part toute seule

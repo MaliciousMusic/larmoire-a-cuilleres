@@ -611,18 +611,33 @@
 
     (scene || hote).appendChild(svg);
 
+    /* ---------- les calques : le chemin de lin, les ombres (floutées une fois pour toutes), chaque plat, les volutes,
+       chacun sur son <svg> (AC.monde) : la table se dresse, un plat se présente, la vapeur monte… sur le compositeur,
+       sans jamais repeindre la table ni recalculer le flou des ombres ---------- */
+    const monde = AC.monde(svg);
+    const cChemin = monde.calque(chemin, { marge: 2 });
+    const cOmbres = monde.calque(L.ombres, { marge: 8 });
+    objets.forEach((o) => { o.c = monde.calque(o.g, { marge: 2, cible: true }); });
+    const cVolutes = volutes.map(([w]) => {
+      const bb = w.getBBox(), c = monde.calque(w, { marge: 2 });
+      c.svg.style.transformOrigin = `${f(bb.x + bb.width / 2 - c.x)}px ${f(bb.y + bb.height - c.y)}px`;
+      w.setAttribute('opacity', 1);
+      c.svg.style.opacity = 0;
+      return c;
+    });
+
     /* ---------- toucher un plat : il se présente ---------- */
     let etiqT = 0;
     function montre(cle, { son = true } = {}) {
       const its = objets.filter((o) => o.cle === cle);
       if (!its.length) return;
-      if (!AC.reduced) its.forEach((o, k) => o.g.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.09)', offset: 0.35 }, { transform: 'scale(.98)', offset: 0.7 }, { transform: 'scale(1)' }], { duration: 520, delay: k * 70, easing: 'ease-out' }));
-      if (son && AC.sfx) AC.sfx.play(cle === 'boisson' || cle === 'jus' || cle === 'confitures' || cle === 'miel' ? 'clink' : 'plate', { gain: 0.6 });
+      if (!AC.reduced) its.forEach((o, k) => o.c.svg.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.09)', offset: 0.35 }, { transform: 'scale(.98)', offset: 0.7 }, { transform: 'scale(1)' }], { duration: 520, delay: k * 70, easing: 'ease-out' }));
+      if (son && AC.sfx) AC.sfx.play(SON[cle] || 'plate', { gain: 0.6, m: NOTE[cle] }); // (sa note de l'air de la tablée)
       if (etiquette && NOMS[cle]) {
         const o = its[0], b = svg.getBoundingClientRect(), hb = hote.getBoundingClientRect();
         const k = Math.max(b.width / W, b.height / H), ox = (b.width - W * k) / 2, oy = (b.height - H * k) / 2;
         const x = b.left - hb.left + ox + o.cx * k, y = b.top - hb.top + oy + (o.cy - (o.r || 24)) * k;
-        etiquette.textContent = NOMS[cle];
+        etiquette.textContent = AC.t(NOMS[cle]);
         etiquette.hidden = false;
         // l'étiquette reste dans le cadre ; sa pointe vise toujours le plat
         const lw = etiquette.offsetWidth, gauche = Math.max(lw / 2 + 8, Math.min(hb.width - lw / 2 - 8, x));
@@ -637,7 +652,7 @@
       }
       hote.dispatchEvent(new CustomEvent('tablee', { detail: { cle } }));
     }
-    svg.addEventListener('click', (e) => {
+    (scene || hote).addEventListener('click', (e) => {
       const g = e.target.closest && e.target.closest('.tb-objet');
       if (g && g.dataset.cle !== 'couverts' && g.dataset.cle !== 'deco') montre(g.dataset.cle);
     });
@@ -645,26 +660,56 @@
     /* ---------- la table se dresse ---------- */
     const ORDRE = ['couverts', 'deco', 'plat', 'boisson', 'jus', 'cookie', 'pain', 'fruits', 'gourmandises', 'confitures', 'miel', 'beurre', 'fromage-blanc', 'muesli', 'pates-a-tartiner'];
     const SON = { deco: 'clink', couverts: 'spoon', plat: 'plate', boisson: 'clink', jus: 'clink', cookie: 'pop', pain: 'plate', fruits: 'plate', gourmandises: 'plate', confitures: 'clink', miel: 'clink', beurre: 'plate', 'fromage-blanc': 'clink', muesli: 'clink', 'pates-a-tartiner': 'clink' };
-    function pose() { objets.forEach((o) => { o.g.style.opacity = ''; o.o.style.opacity = ''; }); }
+    // L'air de la tablée : chaque objet posé joue une note avec son propre son (la cuillère, l'assiette, la tasse, le
+    // cookie), et la table se dresse sur une petite valse en sol majeur (celle de la boîte à musique de l'ouverture) :
+    // une question qui monte et redescend, puis la réponse — les confitures grimpent jusqu'au miel, et la pâte à
+    // tartiner se pose sur sol. [note MIDI, durée jusqu'à l'objet suivant, en croches], dans l'ordre de la pose.
+    const CROCHE = 150;
+    const AIR = [
+      [83, 1], [86, 1], // les couverts (l'anacrouse)
+      [91, 2], [90, 1], // la déco
+      [88, 1], [86, 2], // les plats
+      [83, 1], [84, 1], // les chocolats
+      [86, 1], [88, 1], // les jus
+      [86, 1], [83, 2], // les cookies : la question
+      [81, 1], [84, 1], [88, 2], // le pain, les fruits, les gourmandises
+      [86, 0.5], [88, 0.5], [90, 0.5], // les confitures, qui montent vite
+      [91, 2], // le miel, tout en haut
+      [86, 1], [83, 1], [81, 1], // le beurre, le fromage blanc, le muesli
+      [79, 3], // la pâte à tartiner : la réponse, sur sol
+    ];
+    const NOTE = {}; // (la note de chaque plat : celle de son premier objet ; on la rejoue en le touchant)
+    { let k = 0; ORDRE.forEach((cle) => objets.filter((o) => o.cle === cle).forEach(() => { if (AIR[k] && NOTE[cle] == null) NOTE[cle] = AIR[k][0]; k++; })); }
+    // (l'air a son canal : on le coupe net si l'on quitte l'onglet pendant qu'il joue)
+    const voix = AC.sfx && AC.sfx.channel ? AC.sfx.channel(1) : { play: (n, o) => AC.sfx && AC.sfx.play(n, o), cut() {} };
+    if (AC.on) AC.on('view', (v) => { if (v !== 'brunch') voix.cut(); });
+    function pose() { objets.forEach((o) => { o.c.svg.style.opacity = ''; }); cOmbres.svg.style.opacity = ''; cChemin.svg.style.transform = ''; }
+    /** la table vide (construite d'avance, avant d'être dressée) */
+    function cache() { objets.forEach((o) => { o.c.svg.style.opacity = '0'; }); cOmbres.svg.style.opacity = '0'; cChemin.svg.style.transformOrigin = '0 50%'; cChemin.svg.style.transform = 'scaleX(0)'; }
     async function dresser() {
       if (AC.reduced) { pose(); vie(); return; }
-      objets.forEach((o) => { o.g.style.opacity = '0'; o.o.style.opacity = '0'; });
-      chemin.style.transformBox = 'fill-box';
-      chemin.style.transformOrigin = '0 50%';
-      await chemin.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 650, easing: 'cubic-bezier(.3,.8,.3,1)' }).finished.catch(() => {});
-      let t = 0;
+      objets.forEach((o) => { o.c.svg.style.opacity = '0'; });
+      cOmbres.svg.style.opacity = '0';
+      cChemin.svg.style.transformOrigin = '0 50%';
+      cChemin.svg.style.transform = '';
+      await cChemin.svg.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 650, easing: 'cubic-bezier(.3,.8,.3,1)' }).finished.catch(() => {});
+      // les notes sont toutes données d'avance à l'horloge du son (un minuteur, lui, flotte : l'air boiterait) ; chaque
+      // objet apparaît avec la sienne
+      let t = 0, k = 0;
       ORDRE.forEach((cle) => {
         objets.filter((o) => o.cle === cle).forEach((o) => {
+          const [m, d] = AIR[k++] || [null, 1];
+          if (AC.sfx) voix.play(SON[cle] || 'plate', { gain: 0.45, m, tenue: k === AIR.length ? 2.4 : 1, delay: t + 1 });
           setTimeout(() => {
-            o.g.style.opacity = '';
-            o.o.style.opacity = '';
-            o.g.animate([{ opacity: 0, transform: 'translateY(-10px) scale(1.12)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.3,1.3,.5,1)' });
-            o.o.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360 });
-            if (AC.sfx) AC.sfx.play(SON[cle] || 'plate', { gain: 0.45 });
+            o.c.svg.style.opacity = '';
+            o.c.svg.animate([{ opacity: 0, transform: 'translateY(-10px) scale(1.12)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.3,1.3,.5,1)' });
           }, t);
-          t += cle === 'confitures' ? 90 : 150;
+          t += d * CROCHE;
         });
       });
+      // les ombres se posent avec la vaisselle (d'un bloc : leur flou n'est jamais recalculé)
+      cOmbres.svg.style.opacity = '';
+      cOmbres.svg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: t + 360, easing: 'ease-out' });
       await AC.wait(t + 400);
       vie();
     }
@@ -673,16 +718,17 @@
     function vie() {
       if (vivant) return;
       vivant = true;
-      volutes.forEach(([w, k]) => {
-        if (AC.reduced) { w.setAttribute('opacity', 0.3); return; }
-        AC.ambiance.anime(w.animate([
-          { opacity: 0, transform: 'translate(0,4px) scale(.7,.8)' },
+      volutes.forEach(([w, k], i) => {
+        const c = cVolutes[i].svg;
+        if (AC.reduced) { c.style.opacity = 0.3; return; }
+        AC.ambiance.joue(c.animate([
+          { opacity: 0, transform: 'translate(0px, 4px) scale(.7, .8)' },
           { opacity: 0.55, offset: 0.35 },
-          { opacity: 0, transform: `translate(${k % 2 ? 4 : -3}px,-18px) scale(1.2,1.3)` },
-        ], { duration: 2600 + (k % 3) * 400, delay: k * 420, iterations: Infinity, easing: 'ease-out' }), hote);
+          { opacity: 0, transform: `translate(${k % 2 ? 4 : -3}px, -18px) scale(1.2, 1.3)` },
+        ], { duration: 2600 + (k % 3) * 400, delay: k * 420, iterations: Infinity, easing: 'ease-out', fill: 'backwards' }), hote);
       });
     }
-    return { dresser, pose, vie, montre, cles: Object.keys(NOMS) };
+    return { dresser, pose, cache, vie, montre, cles: Object.keys(NOMS) };
   }
 
   AC.Tablee = { create, NOMS };

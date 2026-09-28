@@ -41,10 +41,26 @@
   try { if (window.self !== window.top) cadre = true; } catch (e) { cadre = true; }
   if (cadre) d.className += ' en-cadre';
   else if (window.matchMedia && matchMedia('(min-width: 900px) and (min-height: 600px) and (hover: hover) and (pointer: fine)').matches) d.className += ' mode-vitrine';
+  /* La langue : ?lang= dans l'adresse, sinon celle choisie dans le petit menu de l'accueil, sinon celle du
+     téléphone (français, ou anglais pour tout le reste). En anglais, le dictionnaire (js/ac-en.js) est chargé
+     ici, avant les scripts de l'appli ; la page reste cachée le temps de la traduire (js/ac-core.js). */
+  var lang = 'fr';
+  try {
+    var q = /[?&]lang=(fr|en)(&|$)/.exec(location.search), s = localStorage.getItem('ac:lang');
+    if (q) lang = q[1];
+    else if (s) lang = JSON.parse(s) === 'en' ? 'en' : 'fr';
+    else lang = /^fr/i.test((navigator.languages && navigator.languages[0]) || navigator.language || 'fr') ? 'fr' : 'en';
+  } catch (e) { /* navigation privée */ }
+  if (lang === 'en') {
+    d.lang = 'en';
+    d.className += ' lang-en';
+    document.write('<script src="js/ac-en.js?v=20260928202524"><\/script>');
+    setTimeout(function () { d.className += ' traduit'; }, 3000); // (si un script manquait : la page s'affiche quand même)
+  }
 })();
 </script>
-<link rel="stylesheet" href="css/fonts.css?v=20260928163127">
-<link rel="stylesheet" href="css/armoire.css?v=20260928163127">
+<link rel="stylesheet" href="css/fonts.css?v=20260928202524">
+<link rel="stylesheet" href="css/armoire.css?v=20260928202524">
 <!-- JSONLD:DEBUT -->
 <script type="application/ld+json">{"@context":"https://schema.org","@type":["CafeOrCoffeeShop","Bakery"],"@id":"https://maliciousmusic.github.io/larmoire-a-cuilleres/#armoire","name":"L'Armoire à Cuillères","alternateName":"L'Armoire à cuillères, bar à chocolat","description":"Bar à chocolat et salon de thé : 12 chocolats chauds grands crus, pâtisseries faites maison, thés, cafés et brunch du dimanche.","url":"https://maliciousmusic.github.io/larmoire-a-cuilleres/","image":"https://maliciousmusic.github.io/larmoire-a-cuilleres/assets/img/og-armoire.jpg","logo":"https://maliciousmusic.github.io/larmoire-a-cuilleres/assets/icons/icon-512.png","telephone":"+33783412145","email":"hello@larmoireacuilleres.com","priceRange":"€","servesCuisine":["Chocolat chaud","Pâtisserie","Brunch","Salon de thé"],"address":{"@type":"PostalAddress","streetAddress":"11 rue des Chaussetiers","postalCode":"63000","addressLocality":"Clermont-Ferrand","addressRegion":"Auvergne-Rhône-Alpes","addressCountry":"FR"},"geo":{"@type":"GeoCoordinates","latitude":45.778325,"longitude":3.0841183},"hasMap":"https://www.google.com/maps/place/L%27Armoire+%C3%A0+cuill%C3%A8res/@45.778325,3.0841183,17z/data=!4m6!3m5!1s0x47f71bdd60ae5327:0x1307a65303df46c3!8m2!3d45.778325!4d3.0841183","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Sunday","opens":"11:00","closes":"19:00"},{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Tuesday","opens":"13:00","closes":"19:00"},{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Wednesday","opens":"13:00","closes":"19:00"},{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Thursday","opens":"13:00","closes":"19:00"},{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Friday","opens":"13:00","closes":"19:00"},{"@type":"OpeningHoursSpecification","dayOfWeek":"https://schema.org/Saturday","opens":"13:00","closes":"19:00"}],"acceptsReservations":"Brunch du dimanche uniquement, par téléphone ou SMS","sameAs":["https://www.instagram.com/larmoireacuilleres/","https://www.facebook.com/larmoireacuilleres"],"hasMenu":{"@type":"Menu","name":"La carte","inLanguage":"fr","hasMenuSection":[{"@type":"MenuSection","name":"Chocolats grands crus","hasMenuItem":[{"@type":"MenuItem","name":"Blanc Ivoire 33 %","description":"Chocolat blanc peu sucré, aux notes de gâteau au beurre & de vanille.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Kewane 34 %","description":"Crémeux & réglissé.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Caramélia 35 %","description":"Douceur sucrée & ronde.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Elianza Lait 35 %","description":"Crème glacée, caramel au beurre, cacao grillé & miel de châtaignier.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Vanuari Lait 39 %","description":"Lait entier aux notes sucrées.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Z-Caramel 43 %","description":"Texture craquante de caramel.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Elianza Noir 55 %","description":"Cacao grillé, réglisse, anis étoilé & vanille.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Vanuari Noir 63 %","description":"Texture fluide et équilibrée, douceur du miel, fruits rouges & poivre.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Z-Café 70 %","description":"Véritables grains de café broyés avec le cacao.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Mokaya Noir 75 %","description":"Fruits exotiques, miel, amandes & noisettes grillées, cacao fin grillé et poivré, vanille.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Arcango Noir 85 %","description":"Cacao grillé aux légères notes de châtaignes.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Noir Infini 99 %","description":"La saveur la plus intense.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Les classiques","hasMenuItem":[{"@type":"MenuItem","name":"Chocolat Soyeux","description":"Doux & non sucré.","offers":{"@type":"Offer","price":"4.70","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Chocolat Intense","description":"Épais & corsé, cannelle et miel.","offers":{"@type":"Offer","price":"5.20","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Chocolats gourmets","hasMenuItem":[{"@type":"MenuItem","name":"Praliné noisette","offers":{"@type":"Offer","price":"5.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Guimauve","offers":{"@type":"Offer","price":"5.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Coco façon Bounty","offers":{"@type":"Offer","price":"5.90","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Chocolats glacés","hasMenuItem":[{"@type":"MenuItem","name":"Chocolat frappé simple","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Mocha glacé","offers":{"@type":"Offer","price":"5.80","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Cafés","hasMenuItem":[{"@type":"MenuItem","name":"Espresso","offers":{"@type":"Offer","price":"1.60","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Lungo","offers":{"@type":"Offer","price":"1.80","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Cappuccino","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Café latte","offers":{"@type":"Offer","price":"4.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Café viennois","offers":{"@type":"Offer","price":"2.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Mocha","description":"Espresso, chocolat & lait.","offers":{"@type":"Offer","price":"4.50","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Spécialités","hasMenuItem":[{"@type":"MenuItem","name":"Chaï Latte","description":"Latte aux épices.","offers":{"@type":"Offer","price":"4.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Matcha Latte","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Matcha Fraise","offers":{"@type":"Offer","price":"6.00","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Thés & infusions","hasMenuItem":[{"@type":"MenuItem","name":"Montagne Bleue","description":"Thé noir, fraise & rhubarbe.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Blue of London","description":"Thé noir du Yunnan & bergamote.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Thé des Alizés","description":"Thé vert, pêche blanche & fleur d'oranger.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Thé des Fakirs","description":"Thé vert, cardamome, gingembre & agrumes.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Thé Merveilleux","description":"Thé vert, amandes caramélisées & pistache.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Limoncha","description":"Thé vert & noir aux influences japonaises, riz grillé, amandes & citron.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Mama Relax","description":"Infusion BIO, mélisse & lavande.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"L'Herboriste","description":"Infusion BIO, curcuma, réglisse & verveine.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Paris for You","description":"Thé vert, litchi, framboise & notes de rose.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Louvre côté Jardin","description":"Thé vert, pomme, prune & coing.","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Boissons fraîches","hasMenuItem":[{"@type":"MenuItem","name":"Matcha glacé","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Sodas","description":"Coca-Cola, Coca-Cola Zéro, ou limonade Lorina.","offers":{"@type":"Offer","price":"4.00","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Jus de fruits","offers":{"@type":"Offer","price":"4.00","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Citronnade maison","offers":{"@type":"Offer","price":"4.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Thé glacé maison","description":"Pêche, sureau, framboise ou citron.","offers":{"@type":"Offer","price":"4.00","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Sirop à l'eau","offers":{"@type":"Offer","price":"2.00","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Gâteaux","hasMenuItem":[{"@type":"MenuItem","name":"Fondant chocolat noir","description":"Pointe de sel.","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Fondant chocolat au lait","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Brownie","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Cheesecake","offers":{"@type":"Offer","price":"5.50","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Cookie","offers":{"@type":"Offer","price":"3.90","priceCurrency":"EUR"}},{"@type":"MenuItem","name":"Cake","offers":{"@type":"Offer","price":"4.90","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Pour les petits bidons","hasMenuItem":[{"@type":"MenuItem","name":"Formule enfant","description":"Verre de lait spéculoos-vanille, chocolat chaud ou boisson fraîche + petite part de gâteau.","offers":{"@type":"Offer","price":"5.60","priceCurrency":"EUR"}}]},{"@type":"MenuSection","name":"Brunch du dimanche","hasMenuItem":[{"@type":"MenuItem","name":"Brunch du dimanche","description":"Un plat salé au choix (accompagné de sa salade fraîche), Une boisson chaude au choix (café, thé ou chocolat chaud), Un jus de pomme, Notre délicieux cookie (la petite touche sucrée signée L’Armoire), et buffet à volonté.","offers":{"@type":"Offer","price":"23.00","priceCurrency":"EUR"}}]}]},"foundingDate":"2013"}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Peut-on réserver pour le goûter ?","acceptedAnswer":{"@type":"Answer","text":"Non : pour le goûter, on vient comme on est, sans réservation. L'Armoire est toute petite ; en semaine ou en début d'après-midi, on trouve plus facilement une place."}},{"@type":"Question","name":"Comment réserver le brunch du dimanche ?","acceptedAnswer":{"@type":"Answer","text":"Par téléphone ou SMS au 07 83 41 21 45. Le brunch est servi tous les dimanches à partir de 11h30, 23 € par personne ; les places sont limitées."}},{"@type":"Question","name":"Le chocolat chaud est-il servi bouillant ?","acceptedAnswer":{"@type":"Answer","text":"Non : il est préparé à la minute et servi autour de 65 °C, la température où l'on sent le mieux ses arômes."}},{"@type":"Question","name":"Y a-t-il des laits végétaux ?","acceptedAnswer":{"@type":"Answer","text":"Oui : avoine, coco ou amande, pour 0,50 € de plus. Arômes (vanille, caramel, spéculoos, praliné noisette) : 0,30 €."}},{"@type":"Question","name":"Peut-on commander un gâteau entier ?","acceptedAnswer":{"@type":"Answer","text":"Oui, au moins 24 h à l'avance, par e-mail à hello@larmoireacuilleres.com."}},{"@type":"Question","name":"Tout est-il fait maison ?","acceptedAnswer":{"@type":"Answer","text":"Oui : les pâtisseries sont préparées chaque jour dans notre labo, rue des Chaussetiers, avec du lait bio, du miel et de la farine de producteurs d'Auvergne."}}]}</script>
@@ -59,6 +75,8 @@
   <defs>
     <radialGradient id="sc-aile" cx=".44" cy=".42" r=".56"><stop offset=".55" stop-color="#fff" stop-opacity="0"/><stop offset=".9" stop-color="#8A7A66" stop-opacity=".08"/><stop offset="1" stop-color="#6E5E4C" stop-opacity=".24"/></radialGradient>
     <radialGradient id="sc-puits" cx=".56" cy=".58" r=".62"><stop offset=".68" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#5E4C3A" stop-opacity=".16"/></radialGradient>
+    <!-- la 5e étoile de la note (4,6) : remplie aux six dixièmes -->
+    <linearGradient id="demi-etoile" x1="0" x2="1" y1="0" y2="0"><stop offset=".6" stop-color="#C9A45C"/><stop offset=".6" stop-color="#C9A45C" stop-opacity=".22"/></linearGradient>
     <!-- une soucoupe ancienne vue de dessus : l'aile à fleurettes (encre : currentColor), le bassin, l'émail qui brille -->
     <symbol id="soucoupe" viewBox="0 0 64 64">
       <circle cx="32" cy="32" r="30.5" fill="#FCFAF4"/><circle cx="32" cy="32" r="30.5" fill="url(#sc-aile)"/>
@@ -87,6 +105,18 @@
     <symbol id="i-fleche" viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></symbol>
     <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
     <symbol id="i-etoile" viewBox="0 0 24 24"><path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.7L12 16.8l-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/></symbol>
+    <!-- le buffet du brunch : un petit dessin par étiquette -->
+    <symbol id="b-beurre" viewBox="0 0 24 24"><path d="M3.5 15.6c0 1.4 3.8 2.6 8.5 2.6s8.5-1.2 8.5-2.6"/><path d="M6.5 11.2l3-2.6h8.6l-3 2.6zM6.5 11.2v4.3h8.6v-4.3M15.1 15.5l3-2.6V8.6"/><path d="M9 13.2h3.4" opacity=".6"/></symbol>
+    <symbol id="b-confiture" viewBox="0 0 24 24"><path d="M7 10.5h10v8a1.8 1.8 0 0 1-1.8 1.8H8.8A1.8 1.8 0 0 1 7 18.5z"/><path d="M6.2 8.8L8 5.2h8l1.8 3.6zM7.6 8.8h8.8v1.7H7.6z"/><path d="M9.6 14.4h4.8M10.4 16.6h3.2" opacity=".6"/></symbol>
+    <symbol id="b-miel" viewBox="0 0 24 24"><path d="M5.8 11.4c0-2 2.8-3.1 6.2-3.1s6.2 1.1 6.2 3.1v5.4c0 2.2-2.8 3.6-6.2 3.6s-6.2-1.4-6.2-3.6z"/><path d="M5.8 11.4c0 1.4 2.8 2.3 6.2 2.3s6.2-.9 6.2-2.3"/><path d="M14.6 9.2l4-5.6M17.6 3.2l1.9 1.3"/></symbol>
+    <symbol id="b-fromage" viewBox="0 0 24 24"><path d="M4 12.4h16c0 4.3-3.6 7-8 7s-8-2.7-8-7z"/><path d="M7.4 12.4c.5-1.9 2.4-3 4.6-3s4.1 1.1 4.6 3"/><path d="M15.2 10.2l3.9-5.6"/><ellipse cx="19.6" cy="4" rx="1.1" ry="1.6" transform="rotate(35 19.6 4)"/></symbol>
+    <symbol id="b-muesli" viewBox="0 0 24 24"><path d="M4 12.4h16c0 4.3-3.6 7-8 7s-8-2.7-8-7z"/><path d="M7.2 10.6l1.8-.7M10.4 9.4l1.9.4M13.6 10.2l1.7-.9M16.2 11l1.2.3M9 11.6l1.4.3M12.2 11.4l1.3-.4"/><path d="M12 7.6c-.4-1.6.3-3 1.6-3.8"/></symbol>
+    <symbol id="b-tartiner" viewBox="0 0 24 24"><path d="M5.8 10.4h9.4v8.2a1.7 1.7 0 0 1-1.7 1.7H7.5a1.7 1.7 0 0 1-1.7-1.7z"/><path d="M5.2 7.6h10.6v2.8H5.2z"/><path d="M17.4 13.2l3.3-7.8c.3.6.3 1.6-.1 2.7l-2.2 5.5"/><path d="M8 14.6c1.2-.9 3.2-.9 5 0" opacity=".6"/></symbol>
+    <symbol id="b-pain" viewBox="0 0 24 24"><path d="M3.4 14.6c0-3.4 3.9-6 8.6-6s8.6 2.6 8.6 6c0 1.9-1.4 3.1-3.1 3.1H6.5c-1.7 0-3.1-1.2-3.1-3.1z"/><path d="M7.6 11.6l1.6 2.2M11.3 10.6l1.6 2.3M15 11l1.6 2.2"/></symbol>
+    <symbol id="b-fruits" viewBox="0 0 24 24"><path d="M12 8.6c-1.5-1-5.6-1.2-6.4 2.6-.8 3.9 1.6 8.6 4.4 8.6 1 0 1.3-.5 2-.5s1 .5 2 .5c2.8 0 5.2-4.7 4.4-8.6-.8-3.8-4.9-3.6-6.4-2.6z"/><path d="M12 8.6c0-1.6.5-3.1 1.5-4.1"/><path d="M13.2 5.6c1.5-1.3 3.6-1.1 4.6.2-1.6 1.1-3.4 1.1-4.6-.2z"/></symbol>
+    <symbol id="b-gourmandises" viewBox="0 0 24 24"><path d="M3.8 15.2c0-4.5 3.7-8.2 8.2-8.2s8.2 3.7 8.2 8.2c-2.7 1.5-5.4 2.1-8.2 2.1s-5.5-.6-8.2-2.1z"/><path d="M12 9.2v6.9M8.4 10.3l1.5 5.6M15.6 10.3l-1.5 5.6M5.6 12.2l2.6 3.6M18.4 12.2l-2.6 3.6"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
     <symbol id="i-qr" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5zM14 18.5h1.5M18.5 14H20"/></symbol>
   </defs>
 </svg>
@@ -132,8 +162,8 @@
 
 <!-- ======================= décor pour ordinateur ======================= -->
 <aside class="bureau" aria-hidden="true">
-  <div class="bureau-g"><div class="bureau-feuilles" id="bureau-feuilles-g"></div><p class="bureau-mot">Bar à chocolat<br>&amp; salon de thé</p><p class="bureau-adr">11 rue des Chaussetiers<br>Clermont-Ferrand</p></div>
-  <div class="bureau-d"><div class="bureau-qr" id="bureau-qr"></div><p class="bureau-mot">Encore mieux<br>sur votre téléphone</p><div class="bureau-feuilles" id="bureau-feuilles-d"></div></div>
+  <div class="bureau-g"><div class="bureau-feuilles" id="bureau-feuilles-g"></div><p class="bureau-mot" data-t>Bar à chocolat<br>&amp; salon de thé</p><p class="bureau-adr">11 rue des Chaussetiers<br>Clermont-Ferrand</p></div>
+  <div class="bureau-d"><div class="bureau-qr" id="bureau-qr"></div><p class="bureau-mot" data-t>Encore mieux<br>sur votre téléphone</p><div class="bureau-feuilles" id="bureau-feuilles-d"></div></div>
 </aside>
 
 <!-- ======================= ouverture : le logo se dessine ======================= -->
@@ -152,6 +182,14 @@
     <div class="view-scroll">
       <div class="scene" id="scene-facade">
         <div class="facade-host" id="facade-host"></div>
+        <!-- la langue : un petit menu discret, en haut à gauche de la devanture -->
+        <div class="langue" id="langue">
+          <button class="langue-bouton" id="langue-bouton" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langue-menu" aria-label="Langue : français"><svg class="langue-globe" aria-hidden="true"><use href="#i-globe"/></svg><span class="langue-code" aria-hidden="true">FR</span><svg class="langue-chevron" aria-hidden="true"><use href="#i-chevron"/></svg></button>
+          <ul class="langue-menu" id="langue-menu" hidden>
+            <li><button type="button" data-lang="fr" lang="fr" aria-pressed="true"><span class="lm-code" aria-hidden="true">FR</span>Français</button></li>
+            <li><button type="button" data-lang="en" lang="en" aria-pressed="false"><span class="lm-code" aria-hidden="true">EN</span>English</button></li>
+          </ul>
+        </div>
         <p class="scene-astuce" id="scene-astuce" aria-hidden="true">Touchez la porte, les nichoirs, l’ardoise…</p>
         <div class="scene-vitre" id="scene-vitre" hidden>
           <button class="sv-fermer" id="sv-fermer" type="button" aria-label="Revenir dans la rue" data-sfx="none"><svg aria-hidden="true"><use href="#i-croix"/></svg></button>
@@ -219,12 +257,13 @@
 
   <!-- ======================= LA CARTE ======================= -->
   <section class="view" id="carte" data-view="carte" aria-labelledby="carte-titre">
-    <!-- en haut, toujours visible : la table du goûter, « La carte » dans son coin, l'addition dans l'autre, leur phrase en bandeau -->
+    <!-- en haut, toujours visible : la table du goûter, « La carte » dans son coin, leur phrase en bandeau
+         (pas d'addition : on ne commande pas dans l'appli ; ce qui est servi est dit aux lecteurs d'écran) -->
     <div class="table-gouter" id="table-gouter">
       <canvas class="tg-canvas" id="tg-canvas" aria-hidden="true"></canvas>
       <div class="tg-vie" id="tg-vie" aria-hidden="true"></div>
       <h2 id="carte-titre" class="tg-titre">La carte</h2>
-      <p class="tg-legende" id="tg-legende" aria-live="polite"><span class="tg-total">Total&#8239;:</span> <span class="tg-prix">10,70 €</span></p>
+      <p class="visuellement-cache" id="tg-legende" aria-live="polite"></p>
       <p class="tg-bandeau">Chocolats chauds, pâtisseries maison, thés &amp; cafés</p>
     </div>
     <!-- en dessous, seule la carte défile -->
@@ -376,7 +415,7 @@
         </figure>
 
         <section class="bloc" aria-labelledby="formule-titre">
-          <h3 id="formule-titre" class="bloc-titre"><em>dans la</em> formule</h3>
+          <h3 id="formule-titre" class="bloc-titre" data-t><em>dans la</em> formule</h3>
           <ul class="formule" id="formule">
             <li data-cle="plat"><strong>Un plat salé au choix</strong><span>accompagné de sa salade fraîche</span></li>
             <li data-cle="boisson"><strong>Une boisson chaude au choix</strong><span>café, thé ou chocolat chaud</span></li>
@@ -386,10 +425,19 @@
         </section>
 
         <section class="bloc" aria-labelledby="buffet-titre">
-          <h3 id="buffet-titre" class="bloc-titre">buffet <em>à volonté</em></h3>
+          <h3 id="buffet-titre" class="bloc-titre" data-t>buffet <em>à volonté</em></h3>
           <p class="buffet-intro">Et surtout… un buffet pour composer votre brunch comme vous l’aimez.</p>
+          <!-- des étiquettes de bocal, chacune à la couleur de ce qu'elle annonce (et qui s'allume quand on la touche sur la table) -->
           <ul class="buffet" id="buffet">
-            <li data-cle="beurre">Beurre</li><li data-cle="confitures">Confitures</li><li data-cle="miel">Miel</li><li data-cle="fromage-blanc">Fromage blanc</li><li data-cle="muesli">Muesli</li><li data-cle="pates-a-tartiner">Pâtes à tartiner</li><li data-cle="pain">Pain</li><li data-cle="fruits">Fruits frais</li><li data-cle="gourmandises">Petites gourmandises…</li>
+            <li data-cle="beurre" style="--fond:#FBF0C4;--encre:#7E6410"><svg aria-hidden="true"><use href="#b-beurre"/></svg><span>Beurre</span></li>
+            <li data-cle="confitures" style="--fond:#F9D6DF;--encre:#A1325A"><svg aria-hidden="true"><use href="#b-confiture"/></svg><span>Confitures</span></li>
+            <li data-cle="miel" style="--fond:#F8DDA0;--encre:#8B5409"><svg aria-hidden="true"><use href="#b-miel"/></svg><span>Miel</span></li>
+            <li data-cle="fromage-blanc" style="--fond:#E8F0F3;--encre:#3F5F6E"><svg aria-hidden="true"><use href="#b-fromage"/></svg><span>Fromage blanc</span></li>
+            <li data-cle="muesli" style="--fond:#ECDDC7;--encre:#6B4A2A"><svg aria-hidden="true"><use href="#b-muesli"/></svg><span>Muesli</span></li>
+            <li data-cle="pates-a-tartiner" style="--fond:#E6CFC0;--encre:#5A3421"><svg aria-hidden="true"><use href="#b-tartiner"/></svg><span>Pâtes à tartiner</span></li>
+            <li data-cle="pain" style="--fond:#F4E0C2;--encre:#8A5528"><svg aria-hidden="true"><use href="#b-pain"/></svg><span>Pain</span></li>
+            <li data-cle="fruits" style="--fond:#DCF0D6;--encre:#3B7336"><svg aria-hidden="true"><use href="#b-fruits"/></svg><span>Fruits frais</span></li>
+            <li data-cle="gourmandises" style="--fond:#EADCF4;--encre:#6C2383"><svg aria-hidden="true"><use href="#b-gourmandises"/></svg><span>Petites gourmandises…</span></li>
           </ul>
         </section>
 
@@ -420,9 +468,11 @@
             <label class="champ"><span>Votre prénom</span><input id="resa-prenom" name="given-name" autocomplete="given-name" maxlength="30" placeholder="Julie"></label>
             <label class="champ"><span>Un petit mot <em>(facultatif)</em></span><input id="resa-mot" maxlength="120" placeholder="Végétarien, un anniversaire, une poussette…"></label>
             <div class="resa-apercu" id="resa-apercu" aria-live="polite"></div>
+            <!-- à partir de 7 : on s'organise au téléphone (le SMS ne suffit plus) -->
+            <p class="resa-groupe" id="resa-groupe" role="status" hidden><strong>Plus de 6 personnes ?</strong> On s’organise ensemble au téléphone : appelez-nous pour réserver.</p>
             <div class="resa-boutons">
               <a class="btn btn-choco" id="resa-sms" href="sms:+33783412145"><svg aria-hidden="true"><use href="#i-sms"/></svg>Envoyer par SMS</a>
-              <a class="btn btn-ligne" href="tel:+33783412145"><svg aria-hidden="true"><use href="#i-tel"/></svg>Appeler</a>
+              <a class="btn btn-ligne" id="resa-tel" href="tel:+33783412145"><svg aria-hidden="true"><use href="#i-tel"/></svg>Appeler</a>
             </div>
             <p class="resa-note">L’équipe vous répond pour confirmer. Le brunch se prend sur place, le dimanche.</p>
           </form>
@@ -446,7 +496,7 @@
         <div class="fid-actions" id="fid-actions"></div>
         <details class="fid-comment">
           <summary>Comment ça marche ?</summary>
-          <p>Au comptoir, montrez votre carte : l’équipe y accroche une cuillère pour chaque boisson, avec son code. Dix cuillères, et le chocolat suivant est pour nous. La carte reste dans votre téléphone : pas de compte, pas d’e-mail.</p>
+          <p>Au comptoir, montrez votre carte : l’équipe y accroche une cuillère pour chaque boisson, avec son code. Dix cuillères, et le chocolat suivant est pour nous. Votre compte tient à votre numéro de téléphone : vous retrouvez votre carte même sur un autre téléphone. Pas d’e-mail, pas de publicité.</p>
         </details>
       </div>
     </div>
@@ -486,7 +536,7 @@
           <details class="pli" id="pli-histoire">
             <summary><span class="pli-tete"><span id="histoire-titre" class="pli-titre" role="heading" aria-level="3">L’histoire</span><span class="pli-resume">Mallo, les pays froids, et un cocon pour les jours gris</span></span><span class="pli-signe" aria-hidden="true"></span></summary>
             <div class="pli-corps histoire">
-              <p>Après quelques années dans les pays froids, en Pologne puis au Canada, Mallo est rentrée dans sa ville natale avec une idée en tête : un petit cocon pour les jours gris, chaud l’hiver, frais l’été, <em>douillet comme un duvet d’oiseau</em>.</p>
+              <p data-t>Après quelques années dans les pays froids, en Pologne puis au Canada, Mallo est rentrée dans sa ville natale avec une idée en tête : un petit cocon pour les jours gris, chaud l’hiver, frais l’été, <em>douillet comme un duvet d’oiseau</em>.</p>
               <p>Ce sera une toute petite boutique dans une ruelle du vieux Clermont : du bois, des tables massives sous des tasses fines, de la vaisselle chinée, des livres en haut de l’armoire, des goûters généreux « comme chez mamie »… et du chocolat, beaucoup de chocolat.</p>
               <p>Aujourd’hui, Mallo et Amina pâtissent chaque matin dans le labo de la rue des Chaussetiers. Tout est fait maison.</p>
             </div>
@@ -523,12 +573,16 @@
 
         <section class="bloc avis" aria-labelledby="avis-titre">
           <h3 id="avis-titre" class="bloc-titre">Ce qu’on en dit</h3>
-          <a class="avis-note" href="https://www.google.com/maps/place/L%27Armoire+%C3%A0+cuill%C3%A8res/@45.778325,3.0841183,17z/data=!4m8!3m7!1s0x47f71bdd60ae5327:0x1307a65303df46c3!8m2!3d45.778325!4d3.0841183!9m1!1b1" target="_blank" rel="noopener">
-            <span class="an-chiffre">4,6</span>
-            <span class="an-etoiles" aria-hidden="true"><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg class="demi"><use href="#i-etoile"/></svg></span>
-            <span class="an-texte">602 avis sur Google <svg aria-hidden="true"><use href="#i-fleche"/></svg></span>
-          </a>
-          <p class="avis-sujets">Ce qui revient le plus : <strong>le chocolat chaud</strong>, <strong>le brunch</strong> et <strong>le cheesecake</strong>.</p>
+          <!-- la carte de la note : la note Google, ce qui revient le plus, puis une sélection de 7 avis (js/ac-nous.js) -->
+          <div class="avis-note">
+            <a class="an-lien" href="https://www.google.com/maps/place/L%27Armoire+%C3%A0+cuill%C3%A8res/@45.778325,3.0841183,17z/data=!4m8!3m7!1s0x47f71bdd60ae5327:0x1307a65303df46c3!8m2!3d45.778325!4d3.0841183!9m1!1b1" target="_blank" rel="noopener">
+              <span class="an-chiffre">4,6</span>
+              <span class="an-etoiles" aria-hidden="true"><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg><use href="#i-etoile"/></svg><svg class="demi"><use href="#i-etoile"/></svg></span>
+              <span class="an-texte">602 avis sur Google <svg aria-hidden="true"><use href="#i-fleche"/></svg></span>
+            </a>
+            <p class="avis-sujets" data-t>Ce qui revient le plus : <strong>le chocolat chaud</strong>, <strong>le brunch</strong> et <strong>le cheesecake</strong>.</p>
+            <div class="avis-selection" id="avis-selection" role="region" aria-roledescription="carrousel" aria-label="Une sélection d’avis"></div>
+          </div>
         </section>
 
         <section class="bloc infos" id="infos" aria-labelledby="infos-titre">
@@ -631,16 +685,16 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="js/ac-core.js?v=20260928163127"></script>
-<script src="js/ac-data.js?v=20260928163127"></script>
-<script src="js/ac-brand.js?v=20260928163127"></script>
-<script src="js/ac-facade.js?v=20260928163127"></script>
-<script src="js/ac-splash.js?v=20260928163127"></script>
-<script src="js/ac-table.js?v=20260928163127"></script>
-<script src="js/ac-carte.js?v=20260928163127"></script>
-<script src="js/ac-brunch.js?v=20260928163127"></script>
-<script src="js/ac-fidelite.js?v=20260928163127"></script>
-<script src="js/ac-nous.js?v=20260928163127"></script>
-<script src="js/ac-app.js?v=20260928163127"></script>
+<script src="js/ac-core.js?v=20260928202524"></script>
+<script src="js/ac-data.js?v=20260928202524"></script>
+<script src="js/ac-brand.js?v=20260928202524"></script>
+<script src="js/ac-facade.js?v=20260928202524"></script>
+<script src="js/ac-splash.js?v=20260928202524"></script>
+<script src="js/ac-table.js?v=20260928202524"></script>
+<script src="js/ac-carte.js?v=20260928202524"></script>
+<script src="js/ac-brunch.js?v=20260928202524"></script>
+<script src="js/ac-fidelite.js?v=20260928202524"></script>
+<script src="js/ac-nous.js?v=20260928202524"></script>
+<script src="js/ac-app.js?v=20260928202524"></script>
 </body>
 </html>

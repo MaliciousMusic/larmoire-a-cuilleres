@@ -40,8 +40,9 @@
     if (!host) return null;
     const B = AC.BRAND && AC.BRAND.feuilles && AC.BRAND.feuilles.items;
     const svg = AC.svg('svg', { viewBox: `0 0 ${w} ${h}`, width: '100%', height: '100%', preserveAspectRatio: par, 'aria-hidden': 'true' });
-    const feuilles = [];
+    const feuilles = [], pieds = [];
     spec.forEach(([id, x, y, hh, rot], i) => {
+      pieds.push([x, y]);
       const leaf = B ? AC.feuille(id) : null;
       const g = AC.svg('g', { transform: `translate(${x} ${y}) rotate(${rot})` }, svg);
       const inner = AC.svg('g', { class: 'feuille' }, g);
@@ -59,8 +60,13 @@
     });
     host.innerHTML = '';
     host.appendChild(svg);
-    // elles se balancent doucement, chacune à son rythme (pilotées par l'ambiance : seulement quand on les voit)
-    if (sway && !AC.reduced) AC.ambiance.balance(feuilles, host, { de: -2.5, a: 2.5, periode: (i) => 2800 + i * 430, decale: (i) => i * 700 });
+    // elles se balancent doucement, chacune à son rythme, chacune sur son calque (le compositeur les balance, seulement
+    // quand on les voit) ; elles sortent du dessin la première fois qu'il s'affiche (il faut le mesurer)
+    if (sway && !AC.reduced) AC.quandAffiche(svg, () => {
+      const monde = AC.monde(svg);
+      const cs = feuilles.map((g) => monde.calque(g, { marge: 2 }));
+      AC.ambiance.balance(cs, host, { de: -2.5, a: 2.5, periode: (i) => 2800 + i * 430, decale: (i) => i * 700, pivot: (i) => pieds[i] });
+    });
     return svg;
   };
 
@@ -103,7 +109,7 @@
       // l'ardoise : chaque ligne sert le gâteau sur la table de la carte
       const ul = $('#ardoise-liste');
       if (ul && AC.ARDOISE) {
-        ul.innerHTML = AC.ARDOISE.items.map((it) => `<li><button type="button" data-sert="${it.sert}" data-sfx="chalk">${dessin(it.sert)}<span class="ad-nom">${esc(it.nom)}</span><span class="ad-prix">${AC.prix(it.prix).replace(' €', '')}</span></button></li>`).join('');
+        ul.innerHTML = AC.ARDOISE.items.map((it) => `<li><button type="button" data-sert="${it.sert}" data-sfx="chalk">${dessin(it.sert)}<span class="ad-nom">${esc(it.nom)}</span><span class="ad-prix">${AC.en ? it.prix.toFixed(2) : AC.prix(it.prix).replace(' €', '')}</span></button></li>`).join('');
         ul.addEventListener('click', (e) => {
           const b = e.target.closest('[data-sert]');
           if (!b) return;
@@ -130,16 +136,22 @@
       const hostSalon = $('#scene-salon');
       if (hostSalon) {
         let pret = null;
-        const reveil = async () => {
+        // (chargés et construits d'avance, dans un temps mort, onglet invisible : AC.emit('prechauffe') ; ils jouent leur
+        // entrée à la première visite) le cadrage suit l'écran (ac-conte.js) : le salon remplit le haut de l'onglet
+        const prepare = () => {
           if (!pret) {
-            // (chargés à la demande : ils ne pèsent pas sur l'ouverture de l'accueil)
-            // le cadrage suit l'écran (ac-conte.js) : le salon remplit le haut de l'onglet, la bulle sous Mallo
             pret = AC.charge(['ac-salon.js', 'ac-conte.js']).then(() => AC.Salon.create(hostSalon, { cadre: '0 0 400 760' })).then((api) => {
               try { AC.conte = AC.Conte ? AC.Conte.create(api, $('#conte')) : null; } catch (e) { console.warn('conte', e); }
+              api.svg.style.opacity = '0'; // (jusqu'à son entrée)
               return api;
             }).catch((e) => { console.warn('salon', e); });
           }
-          const api = await pret;
+          return pret;
+        };
+        AC.on('prechauffe', (v) => { if (v === 'nous') prepare(); });
+        const reveil = async () => {
+          const api = await prepare();
+          if (api) api.svg.style.opacity = '';
           if (api && !api._joue) {
             api._joue = true;
             // déjà vue pendant cette visite : l'histoire est écrite, on peut la revoir
@@ -175,19 +187,74 @@
           a.oncancel = fin;
         });
       });
-      // la pile de photos n'est construite qu'à la première visite de l'onglet (les photos ne se chargent pas avant)
+      // la pile de photos et les avis ne sont construits qu'à la première visite de l'onglet (les photos ne se chargent pas avant)
       let pileFaite = false;
-      const faire = () => { if (!pileFaite) { pileFaite = true; pile(); } };
+      const faire = () => { if (!pileFaite) { pileFaite = true; pile(); avis(); } };
       AC.on('view', (v) => { if (v === 'nous') faire(); });
       if (AC.view === 'nous') faire();
     },
   };
 
+  /* ======================================================================
+     Nous : 7 avis, dans la carte de la note Google — une page par avis (au doigt, les flèches, les points)
+     ====================================================================== */
+  const TEINTES = ['#2E767E', '#B8606F', '#557F52', '#8A5A3C', '#6C2383', '#4A6FA5', '#C0843A'];
+  function avis() {
+    const box = $('#avis-selection');
+    const A = AC.AVIS && AC.AVIS.selection;
+    if (!box) return;
+    if (!A || !A.length) { box.hidden = true; return; }
+    const t = AC.t, n = A.length;
+    const fmt = (m) => new Date(m + '-15T12:00:00').toLocaleDateString(AC.en ? 'en-GB' : 'fr-FR', { month: 'short', year: 'numeric' });
+    const etoiles = (k) => Array.from({ length: 5 }, (_, i) => `<svg class="${i < k ? '' : 'vide'}" aria-hidden="true"><use href="#i-etoile"/></svg>`).join('');
+    const CHEV = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+    box.innerHTML = `<div class="av-pistes" tabindex="0" aria-label="${t('Avis de clients, un par page')}">${A.map((a, i) => `
+        <figure class="av-avis" role="group" aria-roledescription="${t('avis')}" aria-label="${t('{i} sur {n}', { i: i + 1, n })}">
+          <blockquote class="av-bulle">
+            <div class="av-tete">
+              <span class="av-initiale" style="--c:${TEINTES[i % TEINTES.length]}" aria-hidden="true">${esc(a.nom.trim()[0] || '?')}</span>
+              <span class="av-qui"><span class="av-nom">${esc(a.nom)}</span><span class="av-quand">${esc(fmt(a.mois))}</span></span>
+              <span class="av-etoiles" role="img" aria-label="${t('{k} étoiles sur 5', { k: a.note })}">${etoiles(a.note)}</span>
+            </div>
+            <p class="av-texte">${esc(a.texte)}</p>
+          </blockquote>
+        </figure>`).join('')}</div>
+      <div class="av-pager">
+        <button class="nu-fleche" type="button" data-dir="-1" data-sfx="page" aria-label="${t('Avis précédent')}">${CHEV('M15 5l-7 7 7 7')}</button>
+        ${A.map((_, i) => `<button class="av-point" type="button" data-i="${i}" data-sfx="page" aria-label="${t('Avis {i}', { i: i + 1 })}"></button>`).join('')}
+        <button class="nu-fleche" type="button" data-dir="1" data-sfx="page" aria-label="${t('Avis suivant')}">${CHEV('M9 5l7 7-7 7')}</button>
+      </div>
+      ${AC.AVIS.exemples ? `<p class="av-exemple">${t('Avis d’exemple de la maquette : à remplacer par une sélection de vrais avis Google.')}</p>` : ''}`;
+    const piste = $('.av-pistes', box), points = $$('.av-point', box);
+    let cour = 0, raf = 0;
+    const marque = (i) => {
+      cour = i;
+      points.forEach((p, k) => { p.classList.toggle('on', k === i); p.setAttribute('aria-current', k === i ? 'true' : 'false'); });
+      $('[data-dir="-1"]', box).disabled = i === 0;
+      $('[data-dir="1"]', box).disabled = i === n - 1;
+    };
+    const va = (i) => {
+      i = Math.max(0, Math.min(n - 1, i));
+      marque(i);
+      if (piste.clientWidth) piste.scrollTo({ left: i * piste.clientWidth, behavior: AC.reduced ? 'auto' : 'smooth' });
+    };
+    piste.addEventListener('scroll', () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { if (piste.clientWidth) marque(Math.round(piste.scrollLeft / piste.clientWidth)); }); }, { passive: true });
+    $('.av-pager', box).addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (b) va(b.dataset.dir ? cour + +b.dataset.dir : +b.dataset.i);
+    });
+    piste.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); va(cour + (e.key === 'ArrowRight' ? 1 : -1)); }
+    });
+    if (window.ResizeObserver) new ResizeObserver(() => { if (piste.clientWidth) piste.scrollLeft = cour * piste.clientWidth; }).observe(piste);
+    marque(0);
+  }
+
   function pile() {
     {
       const box = $('#pile');
       if (!box || !AC.INSTA) return;
-      const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+      const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString(AC.en ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'long' });
       box.innerHTML = AC.INSTA.map((p, i) => `<figure class="photo" data-i="${i}"><img src="assets/img/insta/${p.img}.webp" alt="${esc(p.legende)}" loading="lazy" decoding="async" draggable="false"><figcaption>${esc(p.legende)}<span class="date">${fmt(p.date)}</span></figcaption></figure>`).join('');
       const cards = $$('.photo', box);
       const N = cards.length;
@@ -256,7 +323,7 @@
       box.addEventListener('pointerup', end);
       box.addEventListener('pointercancel', end);
       box.setAttribute('tabindex', '0');
-      box.setAttribute('aria-label', 'Leurs photos Instagram : touchez ou faites glisser pour passer à la suivante');
+      box.setAttribute('aria-label', AC.t('Leurs photos Instagram : touchez ou faites glisser pour passer à la suivante'));
       box.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); toss(e.key === 'ArrowRight' ? 1 : -1); } });
       layout();
     }
