@@ -247,7 +247,12 @@
       setTimeout(() => AC.go('nous'), 250);
       setTimeout(() => facade.closeDoor(700), 1500);
     });
-    on(T.ici, () => { facade.readIci(); AC.scrollTo($('#panneau-ici')); AC.lireIci && AC.lireIci(); });
+    // le panneau « ICI ON… » : ses mots s'allument, puis on entre voir Mallo les faire (onglet Nous)
+    on(T.ici, async () => {
+      facade.readIci();
+      await AC.wait(900);
+      if (AC.conte) { AC.go('nous'); setTimeout(() => AC.conte.jouer(), 450); } else { AC.conteDemande = true; AC.go('nous'); }
+    });
     on(T.slate, () => { AC.sfx.play('chalk'); AC.scrollTo($('#ardoise')); });
     on(T.window, () => vitre(true));
     on(T.vitrine, () => { AC.sfx.play('clink'); AC.go('carte'); setTimeout(() => { const g = $('#r-gateaux'); g && AC.scrollTo(g); }, 450); });

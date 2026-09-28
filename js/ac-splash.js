@@ -1,9 +1,11 @@
 /* ==========================================================================
    L'Armoire à Cuillères — l'ouverture
-   Leur logo en filigrane et « Entrer » (le geste qui autorise le son). Au toucher :
-   la cuillère se dessine à la plume, les lettres éclosent une à une, chacune sur
-   une note de boîte à musique, accord final, la clochette de la porte… et la
-   devanture se construit derrière. Son coupé : elle part toute seule.
+   Leur logo en filigrane, deux bouquets de leurs feuilles dans les coins, et « Entrer »
+   (le geste qui autorise le son). Au toucher : la cuillère se dessine à la plume, les
+   lettres éclosent une à une sur une petite valse musette à la boîte à musique (une
+   note par lettre, la basse et le « pom-pa-pa » à chaque mesure), accord final, la
+   clochette de la porte… et la devanture se construit derrière. Son coupé : elle part
+   toute seule.
    Une fois par visite ; ?intro dans l'adresse la rejoue ; un toucher pendant
    l'animation la passe.
    ========================================================================== */
@@ -11,8 +13,18 @@
   'use strict';
   const AC = (window.AC = window.AC || {});
   const $ = (s, r = document) => r.querySelector(s);
-  // la mélodie : « Au clair de la lune », sur une boîte à musique (une note par lettre)
-  const AIR = [72, 72, 72, 74, 76, 74, 72, 76, 74, 74, 72, 72, 72, 74, 76, 74, 72, 76, 74, 74, 72];
+  // la musique : une petite valse musette à trois temps, en sol, sur une boîte à musique (un air à nous).
+  // Une note par lettre : [note MIDI, durée en ms] ; noire = 280 ms.
+  const VALSE = [
+    [86, 280], [83, 140], [84, 140], [86, 280], //            sol : ré — si do ré
+    [91, 280], [90, 140], [88, 140], [86, 280], //       mi mineur : sol — fa# mi ré
+    [88, 280], [84, 140], [86, 140], [88, 140], [91, 140], // do : mi — do ré mi sol
+    [90, 280], [93, 140], [90, 140], [86, 280], //           ré 7 : fa# — la fa# ré
+    [81, 140], [83, 140], //                                  … la si, et l'accord de sol
+  ];
+  // chaque mesure : la note où elle commence, sa basse, et l'accord des 2e et 3e temps (le « pa-pa »)
+  const MESURES = [[0, 55, [71, 74]], [4, 52, [67, 71]], [8, 48, [64, 67]], [13, 50, [66, 72]], [17, 55, null]];
+  const NOIRE = 280;
 
   /** Le logo en SVG (vectorisé depuis leurs fichiers si ac-brand.js est là, sinon composé avec la police) */
   AC.logoSVG = function ({ couleur = 'currentColor', cuillere = true } = {}) {
@@ -165,10 +177,21 @@
       const { svg, lettres, spoon, bbox } = AC.logoSVG({ couleur: '#2E767E' });
       host.innerHTML = '';
       host.appendChild(svg);
-      AC.bouquet && AC.bouquet($('#splash-feuilles'), [
-        ['aqua', 30, 700, 170, 40], ['turquoise', 10, 660, 150, 10], ['prune', 50, 690, 190, 62], ['fuchsia', 70, 700, 160, 80], ['marine', 110, 700, 110, 30],
-        ['turquoise', 390, 90, 130, 200], ['aqua', 410, 60, 150, 230], ['prune', 360, 40, 150, 170],
-      ], { w: 420, h: 720 });
+      // deux bouquets de leurs feuilles, ancrés dans les vrais coins de l'écran : en haut à droite, en bas à gauche
+      const coins = $('#splash-feuilles');
+      if (coins && AC.bouquet) {
+        coins.innerHTML = '<div class="sf-coin sf-hd"></div><div class="sf-coin sf-bg"></div>';
+        AC.bouquet($('.sf-hd', coins), [
+          ['aqua', 300, 4, 262, 228], ['aqua', 318, 44, 170, 186], ['turquoise', 306, -4, 240, 244], ['turquoise', 312, 22, 214, 192],
+          ['prune', 298, 10, 250, 212], ['marine', 304, 16, 176, 200], ['turquoise', 290, 6, 150, 270], ['aqua', 286, 12, 130, 250],
+          ['fuchsia', 310, 0, 236, 256], ['prune', 300, -6, 190, 264], ['fuchsia', 296, 26, 190, 236],
+        ], { w: 300, h: 300, par: 'xMaxYMin meet' });
+        AC.bouquet($('.sf-bg', coins), [
+          ['aqua', 0, 296, 262, 48], ['aqua', -18, 256, 170, 6], ['turquoise', -6, 304, 240, 64], ['turquoise', -12, 278, 214, 12],
+          ['prune', 2, 290, 250, 32], ['marine', -4, 284, 176, 20], ['turquoise', 10, 294, 150, 90], ['aqua', 14, 288, 130, 70],
+          ['fuchsia', -10, 300, 236, 76], ['prune', 0, 306, 190, 84], ['fuchsia', 4, 274, 190, 56],
+        ], { w: 300, h: 300, par: 'xMinYMax meet' });
+      }
       // filigrane
       svg.style.opacity = '.16';
       const btn = $('#splash-entrer');
@@ -213,8 +236,15 @@
           l.style.transformBox = 'fill-box';
           l.style.transformOrigin = '50% 90%';
           l.animate([{ opacity: 0, transform: 'translateY(18%) scale(.5) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'forwards' });
-          AC.sfx.play('tine', { m: AIR[i % AIR.length] });
-          await AC.wait(i === 4 || i === 8 || i === 14 ? 230 : 150);
+          const [m, d] = VALSE[i % VALSE.length];
+          AC.sfx.play('tine', { m });
+          // la mesure commence : la basse, puis le « pa-pa » des 2e et 3e temps
+          const mes = MESURES.find((x) => x[0] === i % VALSE.length);
+          if (mes) {
+            AC.sfx.play('tine', { m: mes[1], v: 0.6 });
+            if (mes[2]) [NOIRE, NOIRE * 2].forEach((dt) => mes[2].forEach((n) => AC.sfx.play('tine', { m: n, v: 0.22, delay: dt })));
+          }
+          await AC.wait(d);
         }
         if (skip) return;
         AC.sfx.play('chord');

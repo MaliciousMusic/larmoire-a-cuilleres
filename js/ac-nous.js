@@ -84,31 +84,6 @@
       // le nuancier d'appel
       const tn = $('#tc-nuancier');
       if (tn) tn.innerHTML = AC.CRUS.map((c) => `<i style="background:${c.couleur}"></i>`).join('');
-      // le panneau « ICI » : les mots s'allument un à un quand on arrive dessus
-      const p = $('#ici-verbes');
-      if (p) {
-        const words = p.textContent.split(/(\s+)/);
-        p.innerHTML = words.map((w) => (/\s+/.test(w) ? w : `<span class="w">${esc(w)}</span>`)).join('');
-        const ws = $$('.w', p);
-        let joue = false;
-        const lire = async () => {
-          if (joue) return;
-          joue = true;
-          if (AC.reduced) { ws.forEach((w) => w.classList.add('on')); return; }
-          for (let i = 0; i < ws.length; i++) {
-            ws[i].classList.add('on', 'flash');
-            const w = ws[i];
-            setTimeout(() => w.classList.remove('flash'), 420);
-            if (/^on$/i.test(ws[i].textContent) && AC.sfx) AC.sfx.play('tine', { m: [72, 74, 76, 79, 81, 84, 86][Math.floor(i / 2) % 7], v: 0.5 });
-            await AC.wait(/^on$/i.test(ws[i].textContent) ? 150 : 95);
-          }
-        };
-        AC.lireIci = () => { joue = false; ws.forEach((w) => w.classList.remove('on')); lire(); };
-        if ('IntersectionObserver' in window) {
-          const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { lire(); io.disconnect(); } }), { threshold: 0.5 });
-          io.observe(p);
-        } else lire();
-      }
       AC.tasses($('#pied-tasses'), '#6A5850');
       AC.bouquet($('#pied-feuilles'), [['aqua', 60, 64, 58, -64], ['prune', 86, 64, 62, -18], ['turquoise', 100, 64, 56, 16], ['fuchsia', 92, 64, 50, 34], ['marine', 120, 64, 40, 62]], { w: 180, h: 64 });
       AC.bouquet($('#ab-feuilles'), [['turquoise', -4, 232, 92, 44], ['prune', -12, 236, 104, 64], ['aqua', 6, 240, 80, 84], ['fuchsia', 404, 234, 96, -48], ['marine', 414, 214, 70, -24], ['aqua', 396, 240, 82, -80]], { w: 400, h: 240, par: 'xMidYMax meet' });
@@ -121,19 +96,55 @@
   const POSE = [{ x: 0, y: 0, r: -1.5, s: 1 }, { x: 12, y: 8, r: 4, s: 0.97 }, { x: -11, y: 14, r: -4.5, s: 0.94 }, { x: 6, y: 20, r: 2, s: 0.91 }];
   AC.nous = {
     init() {
-      // le salon (ac-salon.js) : dessiné à la première visite de l'onglet, joué une fois, puis vivant
+      // le salon (ac-salon.js) : dessiné à la première visite de l'onglet, joué une fois, puis vivant ;
+      // au premier plan, le comptoir et Mallo qui joue la comptine du fait-maison (ac-conte.js)
       const hostSalon = $('#scene-salon');
       if (hostSalon && AC.Salon && AC.Salon.create) {
-        hostSalon.hidden = false;
-        let salon = null, pret = null;
+        let pret = null;
         const reveil = async () => {
-          if (!pret) pret = AC.Salon.create(hostSalon, {}).then((api) => { salon = api; return api; }).catch((e) => { console.warn('salon', e); hostSalon.hidden = true; });
+          if (!pret) {
+            // le cadrage suit l'écran (ac-conte.js) : le salon remplit le haut de l'onglet, la bulle sous Mallo
+            pret = AC.Salon.create(hostSalon, { cadre: '0 0 400 760' }).then((api) => {
+              try { AC.conte = AC.Conte ? AC.Conte.create(api, $('#conte')) : null; } catch (e) { console.warn('conte', e); }
+              return api;
+            }).catch((e) => { console.warn('salon', e); });
+          }
           const api = await pret;
-          if (api && !api._joue) { api._joue = true; try { await api.play(); } catch (e) { /* rien */ } api.idle && api.idle(); }
+          if (api && !api._joue) {
+            api._joue = true;
+            // déjà vue pendant cette visite : l'histoire est écrite, on peut la revoir
+            if (AC.conte && AC.conte.deja() && !AC.conteDemande) AC.conte.fin();
+            if (AC.conte) AC.conte.entree();
+            try { await api.play(); } catch (e) { /* rien */ }
+            api.idle && api.idle();
+            if (AC.conte && (!AC.conte.deja() || AC.conteDemande)) AC.conte.jouer();
+            AC.conteDemande = false;
+          }
         };
         AC.on('view', (v) => { if (v === 'nous') reveil(); });
         if (AC.view === 'nous') reveil();
       }
+      // les volets qui se déplient (l'histoire, les producteurs, le gâteau entier) : ils s'ouvrent et se ferment en douceur
+      $$('.pli').forEach((d) => {
+        const corps = $('.pli-corps', d);
+        const sommaire = $('summary', d);
+        if (!corps || !sommaire || !corps.animate) return;
+        sommaire.addEventListener('click', (e) => {
+          if (AC.reduced) return; // le <details> s'ouvre tout seul
+          e.preventDefault();
+          if (d.dataset.anim) return;
+          const ouvrir = !d.open;
+          if (ouvrir) d.open = true;
+          const h = corps.scrollHeight;
+          d.dataset.anim = '1';
+          const a = corps.animate(ouvrir
+            ? [{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }]
+            : [{ height: h + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: ouvrir ? 380 : 260, easing: 'cubic-bezier(.3,.8,.3,1)' });
+          const fin = () => { if (!ouvrir) d.open = false; delete d.dataset.anim; };
+          a.onfinish = fin;
+          a.oncancel = fin;
+        });
+      });
       // la pile de photos n'est construite qu'à la première visite de l'onglet (les photos ne se chargent pas avant)
       let pileFaite = false;
       const faire = () => { if (!pileFaite) { pileFaite = true; pile(); } };

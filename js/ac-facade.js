@@ -122,18 +122,39 @@
     const R = AC.rng(opts.seed || 11);
     const svg = S('svg', { viewBox: '0 0 400 560', class: 'facade', preserveAspectRatio: 'xMidYMax slice', role: 'img', 'aria-label': "La devanture de L'Armoire à Cuillères, rue des Chaussetiers" });
     svg.style.overflow = 'visible';
+    // cadrage : toute la hauteur, toujours (écran haut : on rogne les côtés ; écran court : le mur et la rue,
+    // dessinés bien au-delà du cadre, débordent sur les côtés au lieu de rogner la corniche et les nichoirs)
+    const cadrer = () => {
+      const W = host.clientWidth, H = host.clientHeight;
+      if (W && H) svg.setAttribute('preserveAspectRatio', H / W >= 1.4 ? 'xMidYMax slice' : 'xMidYMax meet');
+    };
+    if (window.ResizeObserver) new ResizeObserver(cadrer).observe(host);
     const defs = S('defs', {}, svg);
     const U = (p) => AC.uid('fa' + p);
 
     const world = S('g', { class: 'fa-world' }, svg);
-    const front = S('g', { class: 'fa-front' }, svg); // terrasse, fleurs (devant la devanture, sous le voile du soir)
     const night = S('rect', { x: -400, y: -300, width: 1200, height: 1000, fill: '#101a36', opacity: 0, class: 'fa-night', 'pointer-events': 'none' }, svg);
     const spill = S('g', { class: 'fa-spill', 'pointer-events': 'none' }, svg); // la lumière de la porte sur le trottoir
     const lit = S('g', { class: 'fa-lit' }, svg); // les intérieurs éclairés, au-dessus du voile du soir
     const vinyl = S('g', { class: 'fa-vinyl' }, svg); // ce qui est collé sur les vitres (ne s'éteint pas avec la salle)
     const litDoor = S('g', { class: 'fa-lit-door' }, svg); // la salle vue par la porte entrouverte (toujours allumée)
     const glassFx = S('g', { class: 'fa-glassfx', 'pointer-events': 'none' }, svg);
+    // la terrasse, les fleurs, l'ardoise : devant les vitrines (la chaise passe devant les horaires collés
+    // sur la vitre) ; le soir, elles ont leur propre voile (un filtre), puisqu'elles sont au-dessus de celui de la rue
+    const front = S('g', { class: 'fa-front' }, svg);
     const life = S('g', { class: 'fa-life' }, svg); // oiseaux, vapeur, halo de la porte
+    const nuitId = U('nf');
+    const nuitM = S('feColorMatrix', { type: 'matrix', values: '1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 1 0' },
+      S('filter', { id: nuitId, x: '-10%', y: '-10%', width: '120%', height: '120%', 'color-interpolation-filters': 'sRGB' }, defs));
+    const VOILE = [0x10 / 255, 0x1a / 255, 0x36 / 255]; // le bleu nuit du voile de la rue
+    let voileK = 0, voileTour = 0;
+    /** Le voile du soir sur la terrasse : ses couleurs mélangées au bleu nuit, comme sous le voile de la rue */
+    function voile(k) {
+      voileK = k;
+      const a = (1 - k).toFixed(4), c = VOILE.map((v) => (v * k).toFixed(4));
+      nuitM.setAttribute('values', `${a} 0 0 0 ${c[0]} 0 ${a} 0 0 ${c[1]} 0 0 ${a} 0 ${c[2]} 0 0 0 1 0`);
+      if (k > 0.002) front.setAttribute('filter', `url(#${nuitId})`); else front.removeAttribute('filter');
+    }
     const hit = S('g', { class: 'fa-hits' }, svg); // zones à toucher, au-dessus de tout
 
     /* ---------- le mur, la rue au loin ---------- */
@@ -763,11 +784,13 @@
     });
     rect(slate, 95.5, 433.5, 39, 57, 'none', { stroke: '#fff', 'stroke-width': 0.4, opacity: 0.25 });
 
-    // terrasse gauche : table pliante menthe, chaise, la tasse qui fume
-    const terrL = S('g', { class: 'fa-terr-l' }, front);
+    // terrasse gauche, au premier plan (plus grande et plus bas : elle donne la profondeur) :
+    // table pliante menthe, chaise, la tasse de chocolat qui fume
+    const FG = 'translate(-28.8 -302) scale(1.6)';
+    const terrL = S('g', { class: 'fa-terr-l' }, S('g', { transform: FG }, front));
     chair(terrL, 38, 470, P.mint, P.mintDark, false, defs);
     const tableL = table(terrL, 6, 490, 74, P.mint, P.mintDark);
-    const cup = S('g', { class: 'fa-cup' }, terrL);
+    const cup = S('g', { class: 'fa-cup', transform: 'translate(18 0)' }, terrL); // la tasse, au milieu de la table
     S('ellipse', { cx: 30, cy: 489, rx: 11, ry: 3.4, fill: '#F4F0E8' }, cup);
     S('ellipse', { cx: 30, cy: 489, rx: 8, ry: 2.3, fill: '#E4DDD2' }, cup);
     path(cup, 'M23.5 480.5h13l-1.3 7.5c-.3 1.4 -1.5 2.2 -2.9 2.2h-4.6c-1.4 0 -2.6 -.8 -2.9 -2.2z', '#FBF8F2');
@@ -775,9 +798,9 @@
     S('ellipse', { cx: 30, cy: 480.6, rx: 6.5, ry: 1.7, fill: '#4B2C1B' }, cup);
     S('ellipse', { cx: 29, cy: 480.3, rx: 3, ry: 0.6, fill: '#8A5C40', opacity: 0.6 }, cup);
     path(cup, 'M25 484.5q5 1.4 10 0', 'none', { stroke: '#6AB8C6', 'stroke-width': 0.8, opacity: 0.8 });
-    S('ellipse', { cx: 52, cy: 488, rx: 9, ry: 2.8, fill: '#F0E9DD' }, terrL); // la carte posée
-    rect(terrL, 45, 483, 14, 9, '#FBF7EF', { transform: 'rotate(-12 52 487)' });
-    const steam = S('g', { class: 'fa-steam', 'pointer-events': 'none' }, life);
+    S('ellipse', { cx: 24, cy: 488, rx: 9, ry: 2.8, fill: '#F0E9DD' }, terrL); // la carte posée
+    rect(terrL, 17, 483, 14, 9, '#FBF7EF', { transform: 'rotate(-12 24 487)' });
+    const steam = S('g', { class: 'fa-steam', 'pointer-events': 'none', transform: 'translate(18 0)' }, S('g', { transform: FG }, life));
     for (let k = 0; k < 3; k++) {
       const w = path(steam, `M${28 + k * 2.2} 478c-3 -5 3 -8 0 -13s3 -8 0 -13`, 'none', { stroke: '#fff', 'stroke-width': 1.6, 'stroke-linecap': 'round', opacity: 0, class: 'fa-wisp' });
       w.style.transformBox = 'fill-box';
@@ -860,26 +883,144 @@
     rect(fl, 323.4, 462, 17.2, 3.4, '#C87A52', { rx: 0.8 });
     rect(fl, 323.4, 465, 17.2, 0.8, '#000', { opacity: 0.18 });
 
-    /* ---------- les oiseaux ---------- */
-    function makeBird() {
+    /* ---------- les oiseaux : une mésange bleue, une charbonnière, un moineau ; ils entrent et sortent des nichoirs ---------- */
+    const PLUMES = [
+      { ventre: '#F2CF3B', dos: '#5E9CBF', queue: '#2F6FA0', aile: '#3F84BD', joue: '#FBFBF7', calotte: '#3F84BD', bandeau: '#1F2E4A' },
+      { ventre: '#EBC43A', dos: '#6E8A55', queue: '#3E4A52', aile: '#55697A', joue: '#FBFBF7', calotte: '#1D1D22', bandeau: '#1D1D22', cravate: '#1D1D22' },
+      { ventre: '#D2C9BA', dos: '#8B6445', queue: '#5E4330', aile: '#7A5438', joue: '#ECE6D9', calotte: '#8E8E8A', bavette: '#26221F', stries: '#4A3322' },
+    ];
+    function makeBird(c) {
       const b = S('g', { class: 'fa-bird', opacity: 0 }, life);
       const body = S('g', { class: 'fa-bird-body' }, b);
-      path(body, 'M-5 1.5c0 -3.2 2.6 -5 5.4 -5c2.6 0 4.2 1.6 4.2 3.8c0 3 -2.4 5.2 -5.8 5.2c-2.2 0 -3.8 -1.4 -3.8 -4z', '#F2CF3B'); // ventre jaune
-      path(body, 'M-5.5 0.5c.4 -3.4 3 -5.6 6.2 -5.4c-2.6 1.4 -3.6 3.6 -3.4 6.8z', '#5E9CBF'); // dos bleu-vert
-      path(body, 'M-5.2 1l-5.2 -1.6l.6 2.8z', '#2F6FA0'); // queue
-      const wing = path(body, 'M-3.6 -1.2c2.4 -1 5 -.4 6 1.4c-2.2 1.2 -4.8 1.2 -6.8 .2z', '#3F84BD', { class: 'fa-wing' });
+      path(body, 'M-5 1.5c0 -3.2 2.6 -5 5.4 -5c2.6 0 4.2 1.6 4.2 3.8c0 3 -2.4 5.2 -5.8 5.2c-2.2 0 -3.8 -1.4 -3.8 -4z', c.ventre); // ventre
+      if (c.cravate) path(body, 'M2.4 -1.2c.6 1.8 .5 4 -.5 6.1', 'none', { stroke: c.cravate, 'stroke-width': 1.3, 'stroke-linecap': 'round' });
+      path(body, 'M-5.5 0.5c.4 -3.4 3 -5.6 6.2 -5.4c-2.6 1.4 -3.6 3.6 -3.4 6.8z', c.dos); // dos
+      if (c.stries) path(body, 'M-4.2 -1.4l1.8 -.7M-3.4 .4l1.8 -.7M-2.2 -3l1.6 -.6', 'none', { stroke: c.stries, 'stroke-width': 0.6, 'stroke-linecap': 'round' });
+      path(body, 'M-5.2 1l-5.2 -1.6l.6 2.8z', c.queue); // queue
+      const wing = path(body, 'M-3.6 -1.2c2.4 -1 5 -.4 6 1.4c-2.2 1.2 -4.8 1.2 -6.8 .2z', c.aile, { class: 'fa-wing' });
       wing.style.transformBox = 'fill-box';
       wing.style.transformOrigin = '20% 50%';
       const head = S('g', { class: 'fa-bird-head' }, body);
-      S('circle', { cx: 3.4, cy: -3.8, r: 2.9, fill: '#FBFBF7' }, head);
-      path(head, 'M1 -5.4c.6 -1.6 2 -2.4 3.6 -2.2c1.4 .2 2.2 1 2.4 2c-1.8 -.6 -4 -.6 -6 .2z', '#3F84BD'); // calotte bleue
-      path(head, 'M1.2 -3.6h5.2', 'none', { stroke: '#1F2E4A', 'stroke-width': 0.8 }); // bandeau
+      S('circle', { cx: 3.4, cy: -3.8, r: 2.9, fill: c.joue }, head);
+      path(head, 'M1 -5.4c.6 -1.6 2 -2.4 3.6 -2.2c1.4 .2 2.2 1 2.4 2c-1.8 -.6 -4 -.6 -6 .2z', c.calotte); // calotte
+      if (c.bandeau) path(head, 'M1.2 -3.6h5.2', 'none', { stroke: c.bandeau, 'stroke-width': 0.8 }); // bandeau
+      if (c.bavette) path(head, 'M4.4 -1.8c.9 .5 1.4 1.4 1.2 2.4c-.9 -.2 -1.5 -.9 -1.7 -1.7z', c.bavette);
       S('circle', { cx: 4.2, cy: -3.7, r: 0.7, fill: '#111' }, head);
       path(head, 'M6.2 -3.6l1.6 .5l-1.6 .5z', '#3A3A3A');
       path(b, 'M-0.6 4.6v2M1 4.6v2', 'none', { stroke: '#5A4A3A', 'stroke-width': 0.5, class: 'fa-legs' });
-      return { g: b, wing, head, body };
+      return { g: b, wing, head, body, busy: false, maison: -1, flap: null };
     }
-    const birdA = makeBird();
+    const birds = PLUMES.map(makeBird);
+    birds[0].maison = 1; // au début, deux sont chez eux (le nichoir du milieu, celui de droite), le moineau est dehors
+    birds[1].maison = 2;
+
+    /* ---------- la vie des nichoirs : sortir, s'envoler ; arriver, se poser, rentrer ---------- */
+    const BS = 1.6; // les oiseaux, un peu plus grands que nature pour qu'on les voie sur un téléphone
+    const poseB = (x, y, dir, k = 1, r = 0) => `translate(${f(x)}px, ${f(y)}px) scale(${(dir * k * BS).toFixed(3)}, ${(k * BS).toFixed(3)}) rotate(${f(r)}deg)`;
+    const trou = (h) => [h.x, h.y + 10 * h.s];
+    const perchoir = (h) => [h.x, h.y + 16 * h.s - 6.6 * BS]; // debout sur le bâton, sous le trou
+    const PERCHES = [[366, 34], [296, 168], [84, 474]];
+    const reserve = houses.map(() => false); // un oiseau y entre ou en sort
+    const loin = (dir) => [dir > 0 ? 500 : -100, 6 + Math.random() * 60]; // hors champ, même quand on voit un peu plus de rue
+    const piou = (n, o = {}) => AC.sfx && AC.sfx.play(n, o);
+    function battre(b, on) {
+      if (!b.flap) b.flap = b.wing.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-60deg) scaleY(1.3)' }], { duration: 90, direction: 'alternate', iterations: Infinity });
+      if (on) b.flap.play(); else { b.flap.pause(); b.flap.currentTime = 0; }
+    }
+    const regarde = (b) => b.head.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg)' }, { transform: 'rotate(10deg)' }, { transform: 'rotate(0)' }], { duration: 900 }).finished;
+    function vol(b, from, to, dir, ms, haut = 40) {
+      const [x0, y0] = from, [x1, y1] = to;
+      const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - haut;
+      const steps = [];
+      for (let k = 0; k <= 14; k++) {
+        const t = k / 14, u = 1 - t;
+        steps.push({ transform: poseB(u * u * x0 + 2 * u * t * mx + t * t * x1, u * u * y0 + 2 * u * t * my + t * t * y1, dir, 1, (t - 0.5) * -18) });
+      }
+      return b.g.animate(steps, { duration: ms, fill: 'forwards', easing: 'ease-in-out' }).finished;
+    }
+    const pose = (b, kf, ms, easing = 'ease-in-out') => b.g.animate(kf, { duration: ms, fill: 'forwards', easing }).finished;
+    const depart = (b) => { b.g.getAnimations().forEach((a) => a.cancel()); b.g.style.opacity = 1; };
+    /** L'oiseau du nichoir i sort : sa tête au trou, il se pose sur le bâton, regarde, s'envole (parfois se pose et chante) */
+    async function sortir(b, i) {
+      const h = houses[i];
+      b.busy = true;
+      reserve[i] = true;
+      const dir = Math.random() > 0.5 ? 1 : -1;
+      const [tx, ty] = trou(h), [px, py] = perchoir(h);
+      depart(b);
+      await pose(b, [{ transform: poseB(tx, ty + 1, dir, 0.3) }, { transform: poseB(tx, ty - 1, dir, 0.75) }], 450, 'ease-out');
+      piou('chirp', { n: 2 });
+      await AC.wait(380);
+      await pose(b, [{ transform: poseB(tx, ty - 1, dir, 0.75) }, { transform: poseB(tx, ty - 5, dir, 0.95), offset: 0.45 }, { transform: poseB(px, py, dir) }], 380);
+      b.maison = -1;
+      await regarde(b);
+      await AC.wait(300 + Math.random() * 900);
+      battre(b, true);
+      piou('flutter');
+      let from = [px, py];
+      if (Math.random() < 0.45) { // il va se poser un moment, et chante
+        const pe = PERCHES[Math.floor(Math.random() * PERCHES.length)];
+        await vol(b, from, pe, pe[0] > px ? 1 : -1, 1300);
+        reserve[i] = false;
+        battre(b, false);
+        piou(Math.random() > 0.5 ? 'chirp' : 'trill', { n: 3 });
+        await regarde(b);
+        await AC.wait(1200 + Math.random() * 1500);
+        battre(b, true);
+        piou('flutter');
+        from = pe;
+      }
+      const d = Math.random() > 0.5 ? 1 : -1;
+      await vol(b, from, loin(d), d, 1500, 30);
+      reserve[i] = false;
+      battre(b, false);
+      b.g.getAnimations().forEach((a) => a.cancel());
+      b.g.style.opacity = 0;
+      b.busy = false;
+    }
+    /** Un oiseau du dehors arrive, se pose sur le bâton du nichoir i, regarde, et rentre dans le trou */
+    async function entrer(b, i) {
+      const h = houses[i];
+      b.busy = true;
+      reserve[i] = true;
+      const [tx, ty] = trou(h), [px, py] = perchoir(h);
+      const dir = Math.random() > 0.5 ? 1 : -1;
+      depart(b);
+      battre(b, true);
+      piou('flutter', { delay: 700 });
+      await vol(b, loin(-dir), [px, py - 2], dir, 1600, 24);
+      await pose(b, [{ transform: poseB(px, py - 2, dir) }, { transform: poseB(px, py + 1, dir, 1, 5) }, { transform: poseB(px, py, dir) }], 260);
+      battre(b, false);
+      piou('chirp', { n: 2 });
+      await regarde(b);
+      await AC.wait(400 + Math.random() * 1100);
+      // un petit saut vers le trou, et il disparaît dedans
+      await pose(b, [{ transform: poseB(px, py, dir) }, { transform: poseB(tx, ty - 3, dir, 0.9, -10), offset: 0.5 }, { transform: poseB(tx, ty, dir, 0.3, -10), opacity: 0 }], 520, 'ease-in');
+      b.g.getAnimations().forEach((a) => a.cancel());
+      b.g.style.opacity = 0;
+      b.maison = i;
+      reserve[i] = false;
+      b.busy = false;
+    }
+    /** Un geste de la vie des nichoirs (i : le nichoir touché) ; rien la nuit, ils dorment */
+    function viePiaf(i) {
+      if (isNight) return false;
+      const chez = houses.map((h, k) => birds.find((b) => b.maison === k) || null);
+      if (i != null) {
+        const b = chez[i], dehors = birds.find((x) => x.maison < 0 && !x.busy);
+        if (reserve[i]) return false;
+        if (b && !b.busy) { sortir(b, i); return true; }
+        if (!b && dehors) { entrer(dehors, i); return true; }
+        return false;
+      }
+      const sorties = chez.map((b, k) => (b && !b.busy && !reserve[k] ? k : -1)).filter((k) => k >= 0);
+      const vides = chez.map((b, k) => (!b && !reserve[k] ? k : -1)).filter((k) => k >= 0);
+      const dehors = birds.filter((b) => b.maison < 0 && !b.busy);
+      const alea = (a) => a[Math.floor(Math.random() * a.length)];
+      if (sorties.length && (!vides.length || !dehors.length || Math.random() < 0.5)) { const k = alea(sorties); sortir(chez[k], k); return true; }
+      if (vides.length && dehors.length) { entrer(alea(dehors), alea(vides)); return true; }
+      return false;
+    }
 
     /* ---------- le soir : réverbère ---------- */
     const lamp = S('g', { class: 'fa-lamp' }, world);
@@ -948,6 +1089,12 @@
       syncLight() {
         night.style.transition = 'opacity 1.2s ease';
         night.style.opacity = isNight ? '0.52' : '0';
+        const k1 = isNight ? 0.52 : 0;
+        if (Math.abs(k1 - voileK) > 0.002) {
+          const k0 = voileK, tour = ++voileTour;
+          if (AC.reduced || !AC.tween) voile(k1);
+          else AC.tween(1200, (e) => { if (tour === voileTour) voile(k0 + (k1 - k0) * e); }, AC.ease.inOutSine);
+        }
         lampGlow.style.transition = lampBulb.style.transition = 'opacity 1.2s ease';
         lampGlow.style.opacity = isNight ? '1' : '0';
         lampBulb.style.opacity = isNight ? '1' : '0.25';
@@ -1037,61 +1184,21 @@
           loopDoor();
         };
         loopDoor();
+        // les nichoirs vivent : toutes les quelques secondes, un oiseau sort ou rentre (parfois deux à la fois)
         const loopBird = async () => {
-          await AC.wait(5000 + Math.random() * 7000);
-          if (document.hidden || !svg.isConnected) { setTimeout(loopBird, 4000); return; }
-          await api.bird();
+          await AC.wait(3200 + Math.random() * 4800);
+          if (!svg.isConnected) return;
+          if (!document.hidden && (!AC.view || AC.view === 'accueil')) viePiaf();
           loopBird();
         };
+        setTimeout(() => viePiaf(), 1800);
         loopBird();
       },
 
-      /** Une mésange sort d'un nichoir, va se poser, chante, et rentre */
-      async bird(i = Math.floor(Math.random() * houses.length)) {
-        const h = houses[i];
-        const b = birdA;
-        if (b.busy) return;
-        b.busy = true;
-        const [hx, hy] = h.hole;
-        const perches = [[366, 34], [115, 429], [30, 478], [296, 168], [200, 32]];
-        const [px, py] = perches[Math.floor(Math.random() * perches.length)];
-        const dir = px > hx ? 1 : -1;
-        const BS = 1.6; // la mésange, un peu plus grande que nature pour qu'on la voie sur un téléphone
-        const pose = (x, y, s = 1, r = 0) => `translate(${f(x)}px, ${f(y)}px) scale(${dir * s * BS}, ${s * BS}) rotate(${r}deg)`;
-        b.g.style.opacity = 1;
-        const flap = b.wing.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-60deg) scaleY(1.3)' }], { duration: 90, direction: 'alternate', iterations: Infinity });
-        flap.pause();
-        // la tête sort du trou
-        await b.g.animate([{ transform: pose(hx, hy + 2, 0.4) }, { transform: pose(hx, hy - 1, 0.9) }], { duration: 500, fill: 'forwards', easing: 'ease-out' }).finished;
-        AC.sfx && AC.sfx.play('chirp', { n: 2 });
-        await AC.wait(500);
-        flap.play();
-        AC.sfx && AC.sfx.play('flutter');
-        const mx = (hx + px) / 2, my = Math.min(hy, py) - 40 - Math.random() * 30;
-        const steps = [];
-        for (let k = 0; k <= 12; k++) {
-          const t = k / 12, u = 1 - t;
-          const x = u * u * hx + 2 * u * t * mx + t * t * px, y = u * u * hy + 2 * u * t * my + t * t * py;
-          steps.push({ transform: pose(x, y - 3, 1, (t - 0.5) * -20 * dir) });
-        }
-        await b.g.animate(steps, { duration: 1300, fill: 'forwards', easing: 'ease-in-out' }).finished;
-        flap.pause();
-        b.wing.style.transform = '';
-        AC.sfx && AC.sfx.play(Math.random() > 0.5 ? 'chirp' : 'trill', { n: 3 });
-        await b.head.animate([{ transform: 'rotate(0)' }, { transform: 'rotate(-14deg)' }, { transform: 'rotate(8deg)' }, { transform: 'rotate(0)' }], { duration: 900 }).finished;
-        await AC.wait(1400 + Math.random() * 1600);
-        flap.play();
-        AC.sfx && AC.sfx.play('flutter');
-        const back = [];
-        for (let k = 0; k <= 12; k++) {
-          const t = k / 12, u = 1 - t;
-          const x = u * u * px + 2 * u * t * mx + t * t * hx, y = u * u * (py - 3) + 2 * u * t * my + t * t * (hy - 1);
-          back.push({ transform: `translate(${f(x)}px, ${f(y)}px) scale(${-dir * BS}, ${BS})` });
-        }
-        await b.g.animate(back, { duration: 1300, fill: 'forwards', easing: 'ease-in-out' }).finished;
-        flap.cancel();
-        await b.g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' }).finished;
-        b.busy = false;
+      /** On touche un nichoir : son oiseau sort, ou un oiseau du dehors vient y rentrer (sinon il bouge) */
+      bird(i = Math.floor(Math.random() * houses.length)) {
+        if (!viePiaf(i)) return api.shake(houses[i].inner);
+        return Promise.resolve();
       },
 
       /** Le panneau « ICI » : les mots s'allument un par un */
@@ -1121,7 +1228,7 @@
       camera(r, ms = 800) {
         const W = host.clientWidth, H = host.clientHeight;
         if (!W || !H) return Promise.resolve();
-        const s = Math.max(W / 400, H / 560); // preserveAspectRatio « xMidYMax slice »
+        const s = H / 560; // la devanture tient toujours toute la hauteur (voir cadrer)
         const ox = 200 - W / (2 * s), oy = 560 - H / s;
         let to = 'none';
         if (r) {

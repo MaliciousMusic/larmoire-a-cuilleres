@@ -1231,8 +1231,9 @@
      ====================================================================== */
   async function create(host, opts = {}) {
     const R = AC.rng(opts.seed || 1914);
+    // opts.cadre : le cadrage (l'onglet Nous l'agrandit : le texte du conte en haut, le comptoir en bas)
     const svg = S('svg', {
-      viewBox: '0 0 400 520', class: 'salon', preserveAspectRatio: 'xMidYMid meet', role: 'group',
+      viewBox: opts.cadre || '0 0 400 520', class: 'salon', preserveAspectRatio: 'xMidYMid meet', role: 'group',
       'aria-label': "Le salon de thé : la vieille armoire vitrée et ses livres, la chaise bistrot en bois courbé, le guéridon menthe et la vaisselle ancienne, sous la suspension dorée",
     });
     svg.style.overflow = 'visible';
