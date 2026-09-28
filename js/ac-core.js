@@ -283,10 +283,12 @@
     // élément est invisible (opacité 0, hors de l'écran, sans taille), Chrome la juge « sans changement visible » et la
     // fait tourner ensuite sur le fil principal, à chaque image : on attend donc que l'onglet soit là pour la relancer.
     let vue = null, stable = 0, minuteur = 0, raf = 0;
+    // (vraiment dans la fenêtre : une scène qui la touche seulement par un bord, juste au-dessus ou au-dessous, n'y est
+    // pas — le seuil 0,01 prévient quand elle y entre pour de bon)
     const io = window.IntersectionObserver ? new IntersectionObserver((es) => {
-      es.forEach((e) => { const s = scenes.get(e.target); if (s) s.dedans = e.isIntersecting; });
+      es.forEach((e) => { const s = scenes.get(e.target); if (s) s.dedans = e.isIntersecting && e.intersectionRatio > 0; });
       relance();
-    }) : null;
+    }, { threshold: [0, 0.01] }) : null;
     function scene(el) {
       let s = scenes.get(el);
       if (!s) {

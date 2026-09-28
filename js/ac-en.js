@@ -450,4 +450,8 @@ window.AC_EN = {
   "carrousel": "carousel",
   "06 12 34 56 78": "+44 7700 900123",
   "06 …": "+44 …",
+  "Revenir à la boutique": "Back to the shop",
+  "Plan : © les contributeurs d’OpenStreetMap": "Map: © OpenStreetMap contributors",
+  "Cathédrale": "Cathedral",
+  "Opéra": "Opera House",
 };

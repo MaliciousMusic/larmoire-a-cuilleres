@@ -15,3 +15,6 @@ Thumbs.db
 
 # Captures de contrôle des moteurs de rendu (lourdes, se régénèrent : voir lab/ et tools/rendu/*.mjs)
 tools/rendu/*.png
+
+# les données brutes d'OpenStreetMap (tools/ville/osm.py)
+tools/ville/osm/

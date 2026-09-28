@@ -526,7 +526,7 @@
     svg.style.webkitTapHighlightColor = 'transparent';
     const defs = S('defs', {}, svg);
     const flou = AC.uid('tbf');
-    S('feGaussianBlur', { stdDeviation: 2.6 }, S('filter', { id: flou, x: '-10%', y: '-10%', width: '120%', height: '120%' }, defs));
+    S('feGaussianBlur', { stdDeviation: 2.6 }, S('filter', { id: flou, filterUnits: 'userSpaceOnUse', x: -30, y: -30, width: W + 60, height: H + 60 }, defs));
     const L = { table: G(svg), chemin: G(svg), ombres: G(svg, { filter: `url(#${flou})`, opacity: 0.3 }), objets: G(svg), vie: G(svg, { 'pointer-events': 'none' }) };
     drawTable(defs, L.table, R);
     const chemin = drawRunner(defs, L.chemin);
@@ -611,13 +611,17 @@
 
     (scene || hote).appendChild(svg);
 
-    /* ---------- les calques : le chemin de lin, les ombres (floutées une fois pour toutes), chaque plat, les volutes,
-       chacun sur son <svg> (AC.monde) : la table se dresse, un plat se présente, la vapeur monte… sur le compositeur,
-       sans jamais repeindre la table ni recalculer le flou des ombres ---------- */
+    /* ---------- les calques : le chemin de lin, chaque ombre (floutée une fois pour toutes), chaque plat, les volutes,
+       chacun sur son <svg> (AC.monde) : la table se dresse, un plat se pose sur son ombre, la vapeur monte… sur le
+       compositeur, sans jamais repeindre la table ni recalculer le flou des ombres ---------- */
     const monde = AC.monde(svg);
     const cChemin = monde.calque(chemin, { marge: 2 });
-    const cOmbres = monde.calque(L.ombres, { marge: 8 });
-    objets.forEach((o) => { o.c = monde.calque(o.g, { marge: 2, cible: true }); });
+    objets.forEach((o) => {
+      o.c = monde.calque(o.g, { marge: 2, cible: true });
+      const bb = o.o.getBBox();
+      o.co = monde.calque(o.o, { marge: 9 });
+      o.co.svg.style.transformOrigin = `${f(bb.x + bb.width / 2 - o.co.x)}px ${f(bb.y + bb.height / 2 - o.co.y)}px`;
+    });
     const cVolutes = volutes.map(([w]) => {
       const bb = w.getBBox(), c = monde.calque(w, { marge: 2 });
       c.svg.style.transformOrigin = `${f(bb.x + bb.width / 2 - c.x)}px ${f(bb.y + bb.height - c.y)}px`;
@@ -631,7 +635,10 @@
     function montre(cle, { son = true } = {}) {
       const its = objets.filter((o) => o.cle === cle);
       if (!its.length) return;
-      if (!AC.reduced) its.forEach((o, k) => o.c.svg.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.09)', offset: 0.35 }, { transform: 'scale(.98)', offset: 0.7 }, { transform: 'scale(1)' }], { duration: 520, delay: k * 70, easing: 'ease-out' }));
+      if (!AC.reduced) its.forEach((o, k) => {
+        o.c.svg.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.09)', offset: 0.35 }, { transform: 'scale(.98)', offset: 0.7 }, { transform: 'scale(1)' }], { duration: 520, delay: k * 70, easing: 'ease-out' });
+        o.co.svg.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(1.5px, 2.5px) scale(1.07)', opacity: 0.72, offset: 0.35 }, { transform: 'none', opacity: 1 }], { duration: 520, delay: k * 70, easing: 'ease-out' });
+      });
       if (son && AC.sfx) AC.sfx.play(SON[cle] || 'plate', { gain: 0.6, m: NOTE[cle] }); // (sa note de l'air de la tablée)
       if (etiquette && NOMS[cle]) {
         const o = its[0], b = svg.getBoundingClientRect(), hb = hote.getBoundingClientRect();
@@ -683,13 +690,12 @@
     // (l'air a son canal : on le coupe net si l'on quitte l'onglet pendant qu'il joue)
     const voix = AC.sfx && AC.sfx.channel ? AC.sfx.channel(1) : { play: (n, o) => AC.sfx && AC.sfx.play(n, o), cut() {} };
     if (AC.on) AC.on('view', (v) => { if (v !== 'brunch') voix.cut(); });
-    function pose() { objets.forEach((o) => { o.c.svg.style.opacity = ''; }); cOmbres.svg.style.opacity = ''; cChemin.svg.style.transform = ''; }
+    function pose() { objets.forEach((o) => { o.c.svg.style.opacity = ''; o.co.svg.style.opacity = ''; }); cChemin.svg.style.transform = ''; }
     /** la table vide (construite d'avance, avant d'être dressée) */
-    function cache() { objets.forEach((o) => { o.c.svg.style.opacity = '0'; }); cOmbres.svg.style.opacity = '0'; cChemin.svg.style.transformOrigin = '0 50%'; cChemin.svg.style.transform = 'scaleX(0)'; }
+    function cache() { objets.forEach((o) => { o.c.svg.style.opacity = '0'; o.co.svg.style.opacity = '0'; }); cChemin.svg.style.transformOrigin = '0 50%'; cChemin.svg.style.transform = 'scaleX(0)'; }
     async function dresser() {
       if (AC.reduced) { pose(); vie(); return; }
-      objets.forEach((o) => { o.c.svg.style.opacity = '0'; });
-      cOmbres.svg.style.opacity = '0';
+      objets.forEach((o) => { o.c.svg.style.opacity = '0'; o.co.svg.style.opacity = '0'; });
       cChemin.svg.style.transformOrigin = '0 50%';
       cChemin.svg.style.transform = '';
       await cChemin.svg.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }], { duration: 650, easing: 'cubic-bezier(.3,.8,.3,1)' }).finished.catch(() => {});
@@ -703,13 +709,13 @@
           setTimeout(() => {
             o.c.svg.style.opacity = '';
             o.c.svg.animate([{ opacity: 0, transform: 'translateY(-10px) scale(1.12)' }, { opacity: 1, transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.3,1.3,.5,1)' });
+            // son ombre arrive avec lui : large et pâle tant qu'il est haut, nette quand il touche la table
+            o.co.svg.style.opacity = '';
+            o.co.svg.animate([{ opacity: 0, transform: 'translate(4px, 7px) scale(1.22)' }, { opacity: 0.55, offset: 0.45 }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.3,.8,.4,1)' });
           }, t);
           t += d * CROCHE;
         });
       });
-      // les ombres se posent avec la vaisselle (d'un bloc : leur flou n'est jamais recalculé)
-      cOmbres.svg.style.opacity = '';
-      cOmbres.svg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: t + 360, easing: 'ease-out' });
       await AC.wait(t + 400);
       vie();
     }

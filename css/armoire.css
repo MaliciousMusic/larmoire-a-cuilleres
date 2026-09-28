@@ -178,6 +178,71 @@ main { position: fixed; inset: var(--safe-t) 0 calc(var(--tab-h) + var(--safe-b)
   mask-image: linear-gradient(to bottom, transparent, #000 36%, rgba(0, 0, 0, .5) 62%, transparent);
 }
 #accueil .contenu { position: relative; z-index: 1; }
+/* au-dessus de la devanture (js/ac-ville.js) : la scène (le ciel, la rue vue du dessus, le plan), figée en haut de
+   l'écran, derrière l'immeuble qui remonte devant elle ; les hauteurs sont posées par le script (0 sans lui) */
+.ville { position: relative; }
+.ville-scene {
+  position: sticky; top: 0; z-index: 0; height: 0; overflow: hidden; content-visibility: auto;
+  perspective: 700px; perspective-origin: 50% 30%;
+  background: linear-gradient(to top, #D4EAF2 0%, #9FCDE6 38%, #6BAAD8 100%);
+}
+.ville-scene.nuit { background: linear-gradient(to top, #2A365E 0%, #121C3C 45%, #070B1C 100%); }
+/* le ciel : le jour, le soleil (ses rayons tournent) et des nuages qui passent ; le soir, la lune, les étoiles qui
+   scintillent, des nuages éclairés par-dessus, une étoile filante de temps en temps (js/ac-ville.js) */
+.vs-ciel, .vc-jour, .vc-nuit { position: absolute; inset: 0; pointer-events: none; }
+.vs-ciel svg { position: absolute; display: block; max-width: none; }
+.vc-soleil, .vc-rayons { right: 4%; top: 3%; width: 150px; height: 150px; }
+.vc-lune { right: 5%; top: 2%; width: 150px; height: 150px; }
+.vc-nuage { width: 150px; height: 64px; will-change: transform; }
+.vc-nuage.n1 { left: 3%; top: 15%; }
+.vc-nuage.n2 { left: 50%; top: 27%; width: 120px; height: 51px; }
+.vc-nuage.n3 { left: 16%; top: 36%; width: 96px; height: 41px; }
+.vc-nuage.n4 { left: 30%; top: 4%; width: 110px; height: 47px; }
+.vc-nuage.nn1 { left: 6%; top: 21%; }
+.vc-nuage.nn2 { left: 54%; top: 31%; width: 130px; height: 55px; }
+.vc-etoiles { left: 0; top: 0; width: 100%; height: 72%; }
+.vc-filante {
+  position: absolute; width: 120px; height: 2px; border-radius: 2px; opacity: 0; transform-origin: 0 50%;
+  background: linear-gradient(to right, #FFFDF4, rgba(255, 253, 244, 0)); box-shadow: 0 0 6px 1px rgba(255, 250, 225, .45);
+}
+.ville-course { height: 0; }
+.ville-immeuble { position: relative; z-index: 1; height: 0; content-visibility: auto; }
+.ville-immeuble .ville-svg { display: block; width: 100%; height: 100%; }
+.ville-svg .nuit-seul { display: none; }
+.ville-svg.nuit .nuit-seul { display: inline; }
+/* le sol : bien plus grand que l'écran (couché dans la bascule, on n'en voit jamais les bords) ; son lointain se fond
+   dans le ciel */
+.vs-sol {
+  position: absolute; left: -100%; right: -100%; top: -150%; bottom: 0; overflow: hidden; transform-origin: 50% 100%; background: #F1E9DA;
+  -webkit-mask-image: linear-gradient(to top, #000 55%, transparent 88%); mask-image: linear-gradient(to top, #000 55%, transparent 88%);
+}
+.vs-toile { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; will-change: transform, opacity; }
+.vs-voile { position: absolute; inset: 0; background: #101a36; opacity: 0; pointer-events: none; }
+.vs-lueur { mix-blend-mode: screen; }
+.vs-etiquettes { position: absolute; inset: 0; pointer-events: none; }
+.vs-lieu {
+  position: absolute; left: 0; top: 0; white-space: nowrap; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: #4A3A33;
+  text-shadow: 0 0 3px #F4ECDF, 0 0 3px #F4ECDF, 0 0 2px #F4ECDF; will-change: transform, opacity; opacity: 0;
+}
+.vs-lieu.vs-culte { color: #3B3540; }
+.vs-lieu.vs-parc { color: #3F6A36; font-style: italic; }
+.vs-lieu.vs-rue { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 12.5px; color: #3B2723; text-shadow: 0 0 3px #EADFCB, 0 0 3px #EADFCB; }
+.vs-epingle { position: absolute; left: 0; top: 0; width: 40px; height: 52px; transform-origin: 20px 52px; will-change: transform, opacity; opacity: 0; pointer-events: none; }
+.vs-epingle svg { display: block; width: 40px; height: 52px; filter: drop-shadow(0 3px 3px rgba(42, 27, 24, .35)); }
+.vs-epingle-nom {
+  position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%); white-space: nowrap; padding: 4px 10px; border-radius: 99px;
+  background: var(--choco); color: var(--papier); font-family: var(--lettres); font-size: 15px; line-height: 1.1; opacity: 0; transition: opacity .4s ease;
+}
+.vs-epingle.nomme .vs-epingle-nom { opacity: 1; }
+.vs-info {
+  position: absolute; left: 12px; right: 12px; bottom: 14px; padding: 14px 16px 10px; border-radius: 18px; text-align: center;
+  background: rgba(247, 240, 228, .96); box-shadow: 0 10px 30px -12px rgba(42, 27, 24, .45); opacity: 0; pointer-events: none;
+}
+.vs-nom { margin: 0; font-family: var(--lettres); font-size: 24px; line-height: 1; color: var(--choco); }
+.vs-adr { margin: 4px 0 10px; font-size: 13px; color: var(--encre-2); }
+.vs-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.vs-actions .btn { min-height: 38px; padding: 0 16px; font-size: 14px; }
+.vs-osm { margin: 8px 0 0; font-size: 10.5px; color: var(--encre-2); opacity: .8; }
 .facade-host { position: absolute; inset: 0; }
 .facade-host .fa-cam { position: absolute; inset: 0; }
 .facade-host svg.facade { width: 100%; height: 100%; }

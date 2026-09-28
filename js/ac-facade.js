@@ -1589,5 +1589,5 @@
     return g;
   }
 
-  AC.Facade = { create };
+  AC.Facade = { create, P, enduit: plasterTexture }; // (la palette et l'enduit : l'immeuble au-dessus, ac-ville.js)
 })();

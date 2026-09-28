@@ -97,7 +97,9 @@
         if (t.dataset.tab === current) {
           e.preventDefault();
           const sc = $(`#${current} .view-scroll`);
-          if (sc) sc.scrollTo({ top: 0, behavior: AC.reduced ? 'auto' : 'smooth' });
+          // (sur l'accueil, le haut, c'est la devanture : au-dessus, il y a l'immeuble et le plan du quartier)
+          const haut = current === 'accueil' && AC.ville ? AC.ville.haut() : 0;
+          if (sc) sc.scrollTo({ top: haut, behavior: AC.reduced ? 'auto' : 'smooth' });
         }
       });
     });
@@ -234,6 +236,7 @@
   }
 
   /* ---------- le soir (heure de Paris, coucher du soleil approximatif) ---------- */
+  AC.estNuit = () => isNight(); // (l'immeuble au-dessus de la devanture, ac-ville.js)
   function isNight() {
     const q = new URLSearchParams(location.search);
     if (q.has('soir')) return true;
@@ -427,26 +430,41 @@
     // page et leur scène — la tablée, le salon — se font maintenant, pas au premier toucher ; la scène joue son
     // entrée à la première visite), puis ils s'endorment (AC.endors). Leurs animations restent en pause (AC.ambiance).
     const aPreparer = ['carte', 'brunch', 'nous', 'fidelite', 'accueil'];
+    let finPrepa = null;
+    const prepaFaite = new Promise((ok) => { finPrepa = ok; });
     const prechauffe = () => {
       let v;
       while ((v = aPreparer.shift()) && (v === current || document.getElementById(v).classList.contains('vue')));
-      if (!v) return;
+      if (!v) { finPrepa(); return; }
       initMod(v === 'accueil' ? 'accueil' : v);
       const el = document.getElementById(v);
       el.classList.add('vue');
       AC.emit('prechauffe', v);
       ric(() => { if (!el.classList.contains('is-active')) AC.endors(el, 400); prechauffe(); }, { timeout: 3000 });
     };
+    // la préparation (les modules, la table de la carte, le salon, la tablée, les onglets) : une seule fois, lancée
+    // dès qu'on entre si l'ouverture joue, sinon après la devanture
+    let prepaLancee = false;
+    const lancerPrepa = () => { if (!prepaLancee) { prepaLancee = true; ric(tempsMort, { timeout: 2500 }); } };
     const fac = initFacade();
     initVitre();
-    const splash = AC.splash ? AC.splash() : Promise.resolve({ fromSplash: false });
+    try { AC.ville && AC.ville.init(); } catch (e) { console.warn('ville', e); } // (au-dessus de la devanture : l'immeuble, le quartier)
+    // l'ouverture ne s'achève que l'appli prête : la devanture construite, les polices chargées, les autres onglets
+    // préparés (pendant que les lettres rebondissent : le compositeur les anime, le fil principal est libre), puis un
+    // temps mort ; au plus une douzaine de secondes (la préparation continue ensuite, s'il le faut)
+    const pret = () => {
+      lancerPrepa();
+      const tout = Promise.all([fac, document.fonts && document.fonts.ready ? document.fonts.ready.catch(() => {}) : null, prepaFaite]);
+      return Promise.race([tout, AC.wait(12000)]).then(() => new Promise((ok) => ric(ok, { timeout: 1200 })));
+    };
+    const splash = AC.splash ? AC.splash({ pret }) : Promise.resolve({ fromSplash: false });
     const [f, sp] = await Promise.all([fac, splash]);
     if (f) {
       if (!sp || !sp.skipped) await f.play({ withLetters: !(sp && sp.letters) });
       f.idle();
       hint();
     }
-    setTimeout(() => ric(tempsMort, { timeout: 2500 }), 1200);
+    setTimeout(lancerPrepa, 1200);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

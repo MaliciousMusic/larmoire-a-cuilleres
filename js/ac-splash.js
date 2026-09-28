@@ -6,6 +6,9 @@
    note par lettre, la basse et le « pom-pa-pa » à chaque mesure), accord final, la
    clochette de la porte… et la devanture se construit derrière. Son coupé : elle part
    toute seule.
+   Tant que l'appli se prépare (elle s'y met dès « Entrer »), la valse continue — une
+   question, une réponse, en boucle — et les lettres rebondissent une à une ; elle
+   ne conclut qu'au bout d'une phrase, l'appli prête.
    Une fois par visite ; ?intro dans l'adresse la rejoue ; un toucher pendant
    l'animation la passe.
    ========================================================================== */
@@ -25,6 +28,26 @@
   // chaque mesure : la note où elle commence, sa basse, et l'accord des 2e et 3e temps (le « pa-pa »)
   const MESURES = [[0, 55, [71, 74]], [4, 52, [67, 71]], [8, 48, [64, 67]], [13, 50, [66, 72]], [17, 55, null]];
   const NOIRE = 280;
+  // la suite, pendant que l'appli se prépare : une question (sol — do — sol — ré 7) et sa réponse (mi mineur — do —
+  // ré 7 — sol), en boucle ; chaque note fait rebondir la lettre suivante. Chaque mesure (3 noires) : [basse, accord
+  // du « pa-pa », [[note, ms], …]] ; on peut conclure au bout de la question ou de la réponse (FIN_PHRASE)
+  const SUITE = [
+    [55, [71, 74], [[86, 280], [83, 140], [86, 140], [91, 280]]],
+    [48, [64, 67], [[88, 280], [84, 140], [88, 140], [91, 280]]],
+    [55, [71, 74], [[86, 420], [83, 140], [79, 280]]],
+    [50, [66, 72], [[81, 280], [84, 140], [83, 140], [81, 280]]],
+    [52, [67, 71], [[83, 280], [88, 140], [91, 140], [88, 280]]],
+    [48, [64, 67], [[84, 280], [88, 140], [91, 140], [93, 280]]],
+    [50, [66, 72], [[90, 280], [88, 140], [86, 140], [84, 140], [81, 140]]],
+    [55, [71, 74], [[83, 280], [81, 140], [83, 140], [79, 280]]],
+  ];
+  const FIN_PHRASE = new Set([3, 7]);
+  const MESURE = NOIRE * 3;
+  // un rebond de lettre (écrasée à l'atterrissage)
+  const REBOND = [
+    { transform: 'none' }, { transform: 'translateY(-16%) scale(1.04, .98)', offset: 0.35 },
+    { transform: 'translateY(0) scale(1.07, .92)', offset: 0.62 }, { transform: 'translateY(-3%) scale(.99, 1.01)', offset: 0.8 }, { transform: 'none' },
+  ];
 
   /** Le logo en SVG (vectorisé depuis leurs fichiers si ac-brand.js est là, sinon composé avec la police) */
   AC.logoSVG = function ({ couleur = 'currentColor', cuillere = true } = {}) {
@@ -173,7 +196,8 @@
     Promise.all(fin).then(() => setTimeout(() => calque.remove(), 200));
   }
 
-  AC.splash = function () {
+  /** opts.pret : () → Promise, l'appli prête (appelée dès « Entrer » : la préparation commence) */
+  AC.splash = function (opts = {}) {
     return new Promise((resolve) => {
       const el = $('#splash');
       const q = new URLSearchParams(location.search);
@@ -183,7 +207,7 @@
       try { sessionStorage.setItem('ac-intro', '1'); } catch (e) { /* idem */ }
       el.hidden = false;
       const host = $('#splash-logo');
-      const { svg, lettres, spoon, bbox } = AC.logoSVG({ couleur: '#2E767E' });
+      const { svg, lettres, spoon } = AC.logoSVG({ couleur: '#2E767E' });
       host.innerHTML = '';
       host.appendChild(svg);
       // deux bouquets de leurs feuilles, ancrés dans les vrais coins de l'écran : en haut à droite, en bas à gauche
@@ -218,41 +242,56 @@
         resolve(opts);
       };
 
-      let lance = false, cl = null; // (cl : les calques des lettres)
+      let lance = false, cl = null, plume = [], voix = null, planif = 0; // (cl : les calques des lettres ; plume : la cuillère)
+      // une note de la boîte à musique, sur le canal de l'air (coupé net si l'on passe l'ouverture)
+      const joue = (m, o = {}) => { if (voix) voix.play('tine', { m, ...o }); else if (AC.sfx) AC.sfx.play('tine', { m, ...o }); };
       async function jouer() {
         if (lance) return;
         lance = true;
         btn.classList.remove('on');
         btn.disabled = true;
         if (muet) muet.hidden = true;
-        if (AC.reduced) { svg.style.opacity = '1'; await AC.wait(500); partir({ letters: false }); return; }
+        // l'appli se prépare dès maintenant (ac-app.js) : l'ouverture ne conclut qu'une fois prête
+        let prete = false;
+        const attente = Promise.resolve(opts.pret ? opts.pret() : null).catch(() => {}).then(() => { prete = true; });
+        if (AC.reduced) { svg.style.opacity = '1'; await Promise.race([attente, AC.wait(6000)]); partir({ letters: false }); return; }
+        voix = AC.sfx && AC.sfx.channel ? AC.sfx.channel(1) : null;
         svg.style.transition = 'opacity .3s ease';
         svg.style.opacity = '1';
         // tout se cache, puis se dessine ; chaque lettre sur son calque (elle éclôt sur le compositeur)
         const monde = AC.monde(svg);
         cl = lettres.map((l) => { const c = monde.calque(l, { marge: 6 }); c.svg.style.opacity = '0'; c.svg.style.transformOrigin = '50% 90%'; return c.svg; });
+        // la cuillère se dessine à la plume, de haut en bas : une fenêtre qui descend sur elle pendant que le dessin
+        // remonte d'autant (il reste en place), le tout sur le compositeur
         if (spoon) {
-          const [bx, by, bw, bh] = bbox || [0, 0, 1008, 604];
-          const clipId = AC.uid('sp');
-          const clip = AC.svg('clipPath', { id: clipId }, AC.svg('defs', {}, svg));
-          const r = AC.svg('rect', { x: bx - 20, y: by - 20, width: bw + 40, height: 0 }, clip);
-          spoon.setAttribute('clip-path', `url(#${clipId})`);
+          const cs = monde.calque(spoon, { marge: 4, enveloppe: true });
+          cs.boite.style.overflow = 'hidden';
+          const T = { duration: 1300, easing: 'cubic-bezier(.37,0,.63,1)', fill: 'both' };
+          const a = cs.boite.animate([{ transform: `translateY(${-cs.h}px)` }, { transform: 'none' }], T);
+          cs.svg.animate([{ transform: `translateY(${cs.h}px)` }, { transform: 'none' }], T);
+          plume = [cs.boite, cs.svg];
           AC.sfx.play('nib', { dur: 1.2 });
-          await AC.tween(1300, (e) => r.setAttribute('height', ((bh + 40) * e).toFixed(1)), AC.ease.inOutSine);
+          await a.finished.catch(() => {});
           if (skip) return;
         }
-        for (let i = 0; i < lettres.length && !skip; i++) {
-          cl[i].animate([{ opacity: 0, transform: 'translateY(18%) scale(.5) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'forwards' });
+        // les lettres éclosent, une par note de la valse, la basse et le « pa-pa » à chaque mesure : tout est donné
+        // d'avance (le son à son horloge, les lettres au compositeur), la préparation de l'appli ne fait pas boiter l'air
+        let t = 0;
+        lettres.forEach((l, i) => {
           const [m, d] = VALSE[i % VALSE.length];
-          AC.sfx.play('tine', { m });
-          // la mesure commence : la basse, puis le « pa-pa » des 2e et 3e temps
+          cl[i].animate([{ opacity: 0, transform: 'translateY(18%) scale(.5) rotate(-8deg)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: t, easing: 'cubic-bezier(.3,1.6,.5,1)', fill: 'forwards' });
+          joue(m, { delay: t + 1 });
           const mes = MESURES.find((x) => x[0] === i % VALSE.length);
           if (mes) {
-            AC.sfx.play('tine', { m: mes[1], v: 0.6 });
-            if (mes[2]) [NOIRE, NOIRE * 2].forEach((dt) => mes[2].forEach((n) => AC.sfx.play('tine', { m: n, v: 0.22, delay: dt })));
+            joue(mes[1], { v: 0.6, delay: t + 1 });
+            if (mes[2]) [NOIRE, NOIRE * 2].forEach((dt) => mes[2].forEach((n) => joue(n, { v: 0.22, delay: t + dt })));
           }
-          await AC.wait(d);
-        }
+          t += d;
+        });
+        await AC.wait(t);
+        if (skip) return;
+        // puis la suite, en boucle, tant que l'appli se prépare (au moins la question)
+        await suite(() => prete);
         if (skip) return;
         AC.sfx.play('chord');
         await AC.wait(900);
@@ -264,13 +303,48 @@
           partir({ letters: true });
         } else partir({ letters: false });
       }
+      /** la suite : chaque mesure est donnée 0,7 s d'avance (un long calcul de l'appli ne la retarde pas) ; au bout de la
+          question ou de la réponse, si l'appli est prête (ou après trois tours), elle conclut */
+      function suite(estPrete) {
+        return new Promise((fin) => {
+          const AVANCE = 700;
+          let tMes = performance.now() + 40, k = 0, n = 0;
+          const tic = () => {
+            if (skip) { fin(); return; }
+            const now = performance.now();
+            while (tMes - now < AVANCE) {
+              if (k >= 4 && FIN_PHRASE.has((k - 1) % SUITE.length) && (estPrete() || k >= SUITE.length * 3)) {
+                planif = setTimeout(fin, Math.max(0, tMes - performance.now()));
+                return;
+              }
+              const [basse, accord, notes] = SUITE[k % SUITE.length], base = tMes - now;
+              joue(basse, { v: 0.6, delay: base + 1 });
+              [NOIRE, NOIRE * 2].forEach((dt) => accord.forEach((m) => joue(m, { v: 0.22, delay: base + dt })));
+              let dt = 0;
+              notes.forEach(([m, d]) => {
+                joue(m, { delay: base + dt + 1 });
+                cl[n % cl.length].animate(REBOND, { duration: 460, delay: base + dt, easing: 'ease-out' });
+                n++;
+                dt += d;
+              });
+              tMes += MESURE;
+              k++;
+            }
+            planif = setTimeout(tic, 100);
+          };
+          tic();
+        });
+      }
       btn.addEventListener('click', () => { AC.sfx.unlock && AC.sfx.unlock(); jouer(); }, { once: true });
       if (muet) muet.addEventListener('click', () => { AC.sfx.on = false; AC.syncSound && AC.syncSound(); jouer(); }, { once: true });
       // un toucher pendant l'animation : on passe
       el.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.splash-entrer') || !btn.disabled) return;
         skip = true;
+        clearTimeout(planif);
+        if (voix) voix.cut();
         (cl || lettres).forEach((l) => { l.getAnimations().forEach((a) => a.finish()); l.style.opacity = '1'; });
+        plume.forEach((x) => x.getAnimations().forEach((a) => a.finish()));
         partir({ letters: false });
       });
       // son coupé : l'ouverture part toute seule
