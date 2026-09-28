@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marque vectorisée — contrôle</title>
+<style>
+  :root {
+    --menthe: #67E8CC;
+    --choco: #3B2723;
+    --teal: #6AB8C6;
+    --encre: #1A1919;
+    --papier: #F6F2EC;
+    --texte: #2B2522;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--papier); color: var(--texte); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header, section { max-width: 1240px; margin: 0 auto; padding: 22px 16px; }
+  header { padding-top: 32px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  h2 { font-size: 17px; margin: 0 0 4px; }
+  p.note { margin: 0 0 14px; font-size: 13px; opacity: .75; max-width: 70ch; }
+  code { font-size: 12.5px; background: rgba(0, 0, 0, .06); padding: 1px 4px; border-radius: 4px; }
+  section + section { border-top: 1px solid rgba(0, 0, 0, .08); }
+  .grid { display: grid; gap: 12px; }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 760px) { .g3, .g2 { grid-template-columns: minmax(0, 1fr); } }
+  .tile { position: relative; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+  .tile svg { display: block; width: 100%; height: auto; }
+  .tile .cap { position: absolute; left: 10px; bottom: 6px; font-size: 11px; opacity: .65; }
+  .menthe { background: var(--menthe); }
+  .blanc { background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+  .choco { background: var(--choco); color: #f3e9df; }
+  .row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .spoon-box { flex: 0 0 auto; width: min(260px, 40vw); }
+  button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, .2); background: #fff; cursor: pointer; }
+  button:hover { background: #f0ece6; }
+  .controls { display: flex; gap: 8px; margin: 10px 0 0; flex-wrap: wrap; }
+  .leaves { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .leaf { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .leaf svg { height: 220px; width: auto; overflow: visible; }
+  .leaf span { font-size: 11px; opacity: .7; text-align: center; max-width: 14ch; }
+  .sway { transform-box: view-box; animation: sway 3.2s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+  @media (prefers-reduced-motion: reduce) { .sway { animation: none; } }
+  .err { color: #b00020; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>L’Armoire à Cuillères — éléments de marque vectorisés</h1>
+  <p class="note">Page de contrôle de <code>js/ac-brand.js</code> (<code>window.AC.BRAND</code>). Tout ce qui s’affiche ici est dessiné à partir des chemins du module ; les mêmes dessins existent en fichiers dans <code>assets/brand/</code>.</p>
+  <p id="stats" class="note"></p>
+</header>
+
+<section id="s-logo">
+  <h2>1. Logo</h2>
+  <p class="note">Lettrage en teal, noir et blanc (lignes) sur menthe, blanc et chocolat (colonnes). La cuillère garde son remplissage blanc et son trait noir.</p>
+  <div class="grid g3" id="logos"></div>
+</section>
+
+<section id="s-cuillere">
+  <h2>2. La cuillère</h2>
+  <p class="note">À gauche : silhouette + traits. Au milieu : le squelette d’animation (<code>strokes</code>), du rouge (premier trait) au bleu (dernier). À droite : « la cuillère se dessine à la plume » — un trait de largeur <code>maskWidth</code> avance le long du squelette et révèle les vrais traits.</p>
+  <div class="row" id="cuillere"></div>
+  <div class="controls"><button id="replay">Rejouer le tracé</button></div>
+</section>
+
+<section id="s-cuilleres">
+  <h2>3. Le râtelier</h2>
+  <p class="note">Le dessin d’origine recomposé (dix groupes distincts), puis les dix cuillères isolées, accrochées une par une par leur point <code>hook</code> (pastille rouge) à une barre.</p>
+  <div class="tile menthe" id="ratelier"></div>
+  <div style="height:12px"></div>
+  <div class="tile blanc" id="accroche"></div>
+</section>
+
+<section id="s-tasses">
+  <h2>4. Les tasses</h2>
+  <p class="note">Traits seuls (blanc sur menthe, comme le bandeau d’origine) ; teal sur blanc (comme les affiches d’horaires) ; silhouette de remplissage révélée en chocolat.</p>
+  <div class="grid g3" id="tasses"></div>
+</section>
+
+<section id="s-feuilles">
+  <h2>5. Les feuilles</h2>
+  <p class="note">Chaque feuille seule dans son repère normalisé (base en bas au centre = pivot, pastille rouge ; hauteur 100), en balancement autour du pivot ; puis la composition complète (parties inventées comprises) et le cadrage de l’affiche d’origine (pointillés).</p>
+  <div class="leaves" id="feuilles-seules"></div>
+  <div class="controls"><button id="sway">Balancement marche / arrêt</button></div>
+  <div style="height:12px"></div>
+  <div class="grid g2">
+    <div class="tile blanc" id="feuilles-compo"></div>
+    <div class="tile choco" id="feuilles-cadre"></div>
+  </div>
+</section>
+
+<script src="../js/ac-brand.js"></script>
+<script>
+(function () {
+  'use strict';
+  const NS = 'http://www.w3.org/2000/svg';
+  const B = window.AC && window.AC.BRAND;
+  if (!B) {
+    document.getElementById('stats').innerHTML = '<span class="err">AC.BRAND introuvable : js/ac-brand.js ne s’est pas chargé.</span>';
+    return;
+  }
+
+  function el(name, attrs, parent) {
+    const e = document.createElementNS(NS, name);
+    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function svg(viewBox, parent, extra) {
+    return el('svg', Object.assign({ viewBox: viewBox.join(' '), xmlns: NS }, extra || {}), parent);
+  }
+  function caption(text, parent) {
+    const c = document.createElement('span');
+    c.className = 'cap';
+    c.textContent = text;
+    parent.appendChild(c);
+  }
+
+  /* ---------- statistiques ---------- */
+  const count = (s) => (s ? s.length : 0);
+  let chars = 0;
+  B.logo.letters.forEach((l) => (chars += count(l.d)));
+  chars += count(B.logo.spoon.fill) + count(B.logo.spoon.lines);
+  chars += count(B.cuillere.fill) + count(B.cuillere.lines);
+  B.cuilleres.forEach((c) => (chars += count(c.fill) + count(c.lines)));
+  chars += count(B.tasses.fill) + count(B.tasses.lines);
+  B.feuilles.items.forEach((f) => { chars += count(f.d) + count(f.band); f.details.forEach((d) => (chars += count(d))); });
+  document.getElementById('stats').textContent =
+    `${B.logo.letters.length} lettres · ${B.cuillere.strokes.length} traits de tracé · ${B.cuilleres.length} cuillères · ` +
+    `${B.feuilles.items.length} feuilles · ${(chars / 1024).toFixed(0)} Ko de chemins une fois chargés ` +
+    `(la cuillère du logo et la n° 2 du râtelier sont recalculées depuis la grande cuillère).`;
+
+  /* ---------- 1. logo ---------- */
+  function drawLogo(parent, color) {
+    const L = B.logo;
+    const s = svg(L.viewBox, parent, { role: 'img', 'aria-label': 'L’Armoire à Cuillères' });
+    const g = el('g', { fill: color }, s);
+    L.letters.forEach((l) => el('path', { d: l.d, id: 'x-' + l.id }, g));
+    const c = el('g', {}, s);
+    el('path', { d: L.spoon.fill, fill: '#FFFFFF' }, c);
+    el('path', { d: L.spoon.lines, fill: L.colors.noir }, c);
+    return s;
+  }
+  const logos = document.getElementById('logos');
+  [['teal', B.logo.colors.teal], ['noir', B.logo.colors.noir], ['blanc', B.logo.colors.blanc]].forEach(([nom, col]) => {
+    [['menthe', 'fond menthe'], ['blanc', 'fond blanc'], ['choco', 'fond chocolat']].forEach(([cls, lab]) => {
+      const t = document.createElement('div');
+      t.className = 'tile ' + cls;
+      drawLogo(t, col);
+      caption(`logo ${nom} · ${lab}`, t);
+      logos.appendChild(t);
+    });
+  });
+
+  /* ---------- 2. cuillère ---------- */
+  const C = B.cuillere;
+  const box = document.getElementById('cuillere');
+  function spoonTile(cls, label) {
+    const t = document.createElement('div');
+    t.className = 'tile spoon-box ' + cls;
+    box.appendChild(t);
+    caption(label, t);
+    return t;
+  }
+  const polyD = (pts) => 'M' + pts.map((p) => p[0] + ' ' + p[1]).join('L');
+  {
+    const s = svg(C.viewBox, spoonTile('menthe', 'fill + lines'));
+    el('path', { d: C.fill, fill: '#FFFFFF' }, s);
+    el('path', { d: C.lines, fill: C.lineColor }, s);
+  }
+  {
+    const s = svg(C.viewBox, spoonTile('blanc', 'strokes (ordre)'));
+    el('path', { d: C.lines, fill: '#d9d4cc' }, s);
+    const n = C.strokes.length;
+    C.strokes.forEach((pts, i) => {
+      const h = 0 + (240 * i) / Math.max(1, n - 1);
+      el('path', { d: polyD(pts), fill: 'none', stroke: `hsl(${h} 80% 45%)`, 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, s);
+    });
+  }
+  let replay = null;
+  {
+    const s = svg(C.viewBox, spoonTile('menthe', 'tracé à la plume'));
+    const [x0, y0, w, h] = C.viewBox;
+    const defs = el('defs', {}, s);
+    const mask = el('mask', { id: 'plume', maskUnits: 'userSpaceOnUse', x: x0, y: y0, width: w, height: h }, defs);
+    el('rect', { x: x0, y: y0, width: w, height: h, fill: '#000' }, mask);
+    const paths = C.strokes.map((pts) =>
+      el('path', { d: polyD(pts), fill: 'none', stroke: '#fff', 'stroke-width': C.maskWidth, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, mask));
+    const fill = el('path', { d: C.fill, fill: '#FFFFFF', opacity: 0 }, s);
+    el('path', { d: C.lines, fill: C.lineColor, mask: 'url(#plume)' }, s);
+    const lens = paths.map((p) => p.getTotalLength());
+    const total = lens.reduce((a, b) => a + b, 0);
+    let t0 = null, raf = 0;
+    const DUR = 7000;
+    function frame(ts) {
+      if (t0 === null) t0 = ts;
+      const k = Math.min(1, (ts - t0) / DUR);
+      let drawn = total * k;
+      paths.forEach((p, i) => {
+        const L = lens[i];
+        const v = Math.max(0, Math.min(L, drawn));
+        p.style.strokeDasharray = L + ' ' + L;
+        p.style.strokeDashoffset = String(L - v);
+        // un tiret de longueur nulle garde ses bouts arrondis : on cache les traits pas encore commencés
+        p.style.visibility = v > 0 ? 'visible' : 'hidden';
+        drawn -= L;
+      });
+      fill.setAttribute('opacity', String(Math.max(0, (k - 0.85) / 0.15)));
+      if (k < 1) raf = requestAnimationFrame(frame);
+    }
+    replay = function () {
+      cancelAnimationFrame(raf);
+      t0 = null;
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) { frame(1e12); return; }
+      raf = requestAnimationFrame(frame);
+    };
+    replay();
+  }
+  document.getElementById('replay').addEventListener('click', () => replay && replay());
+
+  /* ---------- 3. râtelier ---------- */
+  const R = B.cuilleres;
+  {
+    // comme le dessin d'origine : toutes les silhouettes d'abord, puis tous les traits (dans les
+    // chevauchements, les deux contours restent visibles)
+    const s = svg(R.viewBox, document.getElementById('ratelier'));
+    const fonds = el('g', {}, s), traits = el('g', {}, s);
+    R.forEach((c) => {
+      el('path', { d: c.fill, fill: '#FFFFFF', id: 'r-fond-' + c.id }, fonds);
+      el('path', { d: c.lines, fill: R.lineColor, id: 'r-' + c.id }, traits);
+    });
+  }
+  {
+    // les dix cuillères accrochées à une barre, espacées régulièrement, par leur point d'accroche
+    const gap = 150, rail = 40;
+    const maxH = Math.max(...R.map((c) => c.bbox[3] - c.hook[1]));
+    const W = gap * (R.length + 1), H = rail + maxH + 20;
+    const s = svg([0, 0, W, H], document.getElementById('accroche'));
+    el('rect', { x: gap * 0.4, y: rail - 6, width: W - gap * 0.8, height: 8, rx: 4, fill: '#8a6a52' }, s);
+    R.forEach((c, i) => {
+      const x = gap * (i + 1);
+      const g = el('g', { transform: `translate(${x - c.hook[0]} ${rail - c.hook[1]})` }, s);
+      el('path', { d: c.fill, fill: '#FFFFFF' }, g);
+      el('path', { d: c.lines, fill: R.lineColor }, g);
+      el('circle', { cx: x, cy: rail, r: 5, fill: '#e0245e' }, s);
+      const tx = el('text', { x, y: H - 4, 'text-anchor': 'middle', 'font-size': 18, fill: '#6b5f57' }, s);
+      tx.textContent = String(i + 1);
+    });
+  }
+
+  /* ---------- 4. tasses ---------- */
+  const T = B.tasses;
+  const tas = document.getElementById('tasses');
+  [['menthe', '#FFFFFF', null, 'traits (currentColor = blanc)'],
+   ['blanc', B.logo.colors.teal, null, 'traits teal'],
+   ['menthe', '#FFFFFF', B.logo.colors.chocolat, 'silhouette (fill) en chocolat']].forEach(([cls, line, fill, lab]) => {
+    const t = document.createElement('div');
+    t.className = 'tile ' + cls;
+    const s = svg(T.viewBox, t);
+    s.style.color = line;
+    if (fill) el('path', { d: T.fill, fill, 'fill-rule': 'evenodd' }, s);
+    el('path', { d: T.lines, fill: 'currentColor' }, s);
+    caption(lab, t);
+    tas.appendChild(t);
+  });
+
+  /* ---------- 5. feuilles ---------- */
+  const F = B.feuilles;
+  const byId = {};
+  F.items.forEach((f) => (byId[f.id] = f));
+  function drawLeaf(parent, f) {
+    if (f.key === 'ecailles') {
+      el('path', { d: f.d, fill: f.fill, 'fill-rule': 'evenodd' }, parent);
+    } else {
+      el('path', { d: f.d, fill: f.fill }, parent);
+      f.details.forEach((d) => el('path', { d, fill: f.detailFill }, parent));
+    }
+  }
+  const seules = document.getElementById('feuilles-seules');
+  const swayGroups = [];
+  F.items.slice().sort((a, b) => a.id.localeCompare(b.id)).forEach((f) => {
+    const w = document.createElement('div');
+    w.className = 'leaf';
+    const vb = [f.viewBox[0] - 4, -4, f.viewBox[2] + 8, 108];
+    const s = svg(vb, w);
+    const g = el('g', { class: 'sway', style: `transform-origin: ${f.pivot[0]}px ${f.pivot[1]}px` }, s);
+    drawLeaf(g, f);
+    swayGroups.push(g);
+    el('circle', { cx: f.pivot[0], cy: f.pivot[1], r: 1.6, fill: '#e0245e' }, s);
+    const lab = document.createElement('span');
+    lab.textContent = `(${f.id}) ${f.label}`;
+    w.appendChild(lab);
+    seules.appendChild(w);
+  });
+  document.getElementById('sway').addEventListener('click', () => {
+    swayGroups.forEach((g) => g.classList.toggle('sway'));
+  });
+  function drawCompo(parent, viewBox, frameOutline) {
+    const s = svg(viewBox, parent);
+    F.order.forEach((id) => {
+      const f = byId[id];
+      const g = el('g', { transform: `matrix(${f.place.join(' ')})`, id: 'feuille-' + f.key }, s);
+      drawLeaf(g, f);
+    });
+    if (frameOutline) {
+      const [x, y, w, h] = F.frame;
+      el('rect', { x, y, width: w, height: h, fill: 'none', stroke: '#e0245e', 'stroke-width': 4, 'stroke-dasharray': '18 12' }, s);
+      F.items.forEach((f) => el('circle', { cx: f.pivotComp[0], cy: f.pivotComp[1], r: 9, fill: '#e0245e' }, s));
+    }
+    return s;
+  }
+  drawCompo(document.getElementById('feuilles-compo'), F.viewBox, true);
+  caption('composition complète, cadre de l’affiche en pointillés, pivots en rouge', document.getElementById('feuilles-compo'));
+  drawCompo(document.getElementById('feuilles-cadre'), F.frame, false);
+  caption('cadrage de l’affiche d’origine (viewBox = frame)', document.getElementById('feuilles-cadre'));
+})();
+</script>
+</body>
+</html>

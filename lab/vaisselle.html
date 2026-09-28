@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaisselle et boissons — contrôle</title>
+<style>
+  :root { --fond: #dcd6ca; --encre: #3b2723; --doux: #7a6a5f; }
+  body { margin: 0; background: var(--fond); font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--encre); }
+  header { padding: 14px 16px 4px; }
+  header h1 { font-size: 17px; margin: 0 0 2px; font-weight: 650; }
+  header p { margin: 0; color: var(--doux); font-size: 12px; }
+  nav { padding: 6px 16px 0; font-size: 12px; }
+  nav a { color: var(--encre); margin-right: 10px; }
+  h2 { font-weight: 600; font-size: 14px; margin: 18px 16px 6px; }
+  .rang { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; align-items: flex-start; }
+  figure { margin: 0; display: flex; flex-direction: column; align-items: center; }
+  figcaption { font-size: 11px; color: var(--doux); margin: 2px 0 4px; text-align: center; max-width: 260px; }
+  canvas { display: block; max-width: 100%; height: auto; }
+  #temps { font: 11px/1.35 ui-monospace, 'Cascadia Mono', monospace; white-space: pre; padding: 8px 16px 20px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>L'Armoire à Cuillères — la vaisselle, la table et les boissons</h1>
+  <p id="info"></p>
+</header>
+<nav>
+  <a href="?s=scene,crus">table et crus</a>
+  <a href="?s=servies">toutes les boissons</a>
+  <a href="?s=assiettes,soucoupes,tasses,objets,cuilleres,tables">la vaisselle</a>
+  <a href="?s=tout">tout</a>
+  <a href="?s=mesures">mesures</a>
+</nav>
+<div id="root"></div>
+<div id="temps"></div>
+<script src="../js/ac-core.js"></script>
+<script src="../js/ac-rendu.js"></script>
+<script src="../js/ac-vaisselle.js"></script>
+<script>
+/* Page de contrôle d'ac-vaisselle.js — ?s=section,section (scene, crus, servies, assiettes, soucoupes,
+   tasses, objets, cuilleres, tables, mesures, tout) ; ?px=2.2 : pixels CSS par millimètre ;
+   ?bench=N : chaque calcul refait N fois à froid (minimum affiché). */
+(function () {
+  'use strict';
+  const R = AC.R, V = AC.Vaisselle, B = AC.Boissons;
+  const qs = new URLSearchParams(location.search);
+  const S = (qs.get('s') || 'tout').split(',');
+  const DPR = window.devicePixelRatio || 1;
+  const PX = +(qs.get('px') || 2.2);
+  const ppm = PX * DPR;
+  const root = document.getElementById('root');
+  const temps = [];
+  const BENCH = +(qs.get('bench') || 0);
+  const on = (k) => S.includes('tout') || S.includes(k);
+  document.getElementById('info').textContent =
+    'Rendu procédural pixel par pixel, lumière commune AC.R (fenêtre en haut à gauche). ' +
+    ppm.toFixed(2) + ' px/mm (' + PX + ' px CSS/mm × dpr ' + DPR + '), parallaxe AC.R.TILT = ' + R.TILT + '.';
+
+  const chrono = (nom, fn) => {
+    const t0 = performance.now();
+    let r = fn();
+    const dt = performance.now() - t0;
+    let best = dt;
+    for (let k = 0; k < BENCH; k++) {
+      R.cache.clear();
+      const t1 = performance.now();
+      r = fn();
+      best = Math.min(best, performance.now() - t1);
+    }
+    const sp = r && (r.sprite || r);
+    const det = sp && sp.t && typeof sp.t === 'object' ? '  (' + Object.entries(sp.t).map(([k, v]) => k + ' ' + v.toFixed(0)).join(', ') + ')' : '';
+    temps.push([nom, dt, det, best]);
+    return r;
+  };
+  function section(titre) {
+    const h = document.createElement('h2');
+    h.textContent = titre;
+    root.appendChild(h);
+    const d = document.createElement('div');
+    d.className = 'rang';
+    root.appendChild(d);
+    return d;
+  }
+  function toile(wmm, hmm, fond) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(wmm * ppm);
+    c.height = Math.round(hmm * ppm);
+    c.style.width = c.width / DPR + 'px';
+    const g = c.getContext('2d');
+    if (fond) { g.fillStyle = fond; g.fillRect(0, 0, c.width, c.height); }
+    return [c, g];
+  }
+  function figure(parent, c, legende) {
+    const f = document.createElement('figure');
+    f.appendChild(c);
+    if (legende) {
+      const l = document.createElement('figcaption');
+      l.textContent = legende;
+      f.appendChild(l);
+    }
+    parent.appendChild(f);
+  }
+  /* un sprite sur un fond uni ; cadre = [w, h] mm centré sur (cx, cy) mm du sprite (défaut : l'ancre) */
+  function vignette(parent, sp, legende, fond = '#A1D4D5', cadre = null, centre = null) {
+    const wmm = cadre ? cadre[0] : sp.w + 8, hmm = cadre ? cadre[1] : sp.h + 8;
+    const [c, g] = toile(wmm, hmm, fond);
+    const cx = centre ? centre[0] : sp.ax, cy = centre ? centre[1] : sp.ay;
+    const x = cadre ? (wmm / 2 - (cx - sp.ax)) * ppm : (4 + sp.ax) * ppm, y = cadre ? (hmm / 2 - (cy - sp.ay)) * ppm : (4 + sp.ay) * ppm;
+    R.draw(g, sp, x, y);
+    figure(parent, c, legende);
+  }
+
+  /* ---------- 1. la table du goûter ---------- */
+  if (on('scene')) {
+    const d = section('La table du goûter — planches menthe, chemin de lin fleuri');
+    const W = 460, H = 320;
+    const tb = chrono('table menthe 460×320', () => V.table({ bois: 'menthe', w: W, h: H, seed: 5 }, ppm));
+    const na = chrono('nappe 190×340', () => V.nappe({ w: 190, h: H + 20, seed: 6 }, ppm));
+    const [c, g] = toile(W, H);
+    g.drawImage(tb, 0, 0);
+    g.save();
+    g.shadowColor = 'rgba(48,30,22,0.28)';
+    g.shadowBlur = 2.5 * ppm;
+    g.shadowOffsetX = 0.8 * ppm;
+    g.shadowOffsetY = 1.2 * ppm;
+    g.drawImage(na, Math.round(250 * ppm), Math.round(-10 * ppm));
+    g.restore();
+    const as = chrono('assiette bleue', () => V.assiette({ motif: 'bleu', seed: 11 }, ppm));
+    R.draw(g, as, 346 * ppm, 196 * ppm);
+    const cui = V.cuillere({ seed: 4, sol: '#A1D4D5' }, ppm);
+    const o = V.ombreTournee(cui, -0.75, ppm, 6);
+    const cx = 300 * ppm, cy = 52 * ppm;
+    g.drawImage(o.canvas, cx + o.dx, cy + o.dy, o.canvas.width * o.k, o.canvas.height * o.k);
+    g.save(); g.translate(cx, cy); g.rotate(-0.75); R.draw(g, cui, 0, 0, { shadow: false }); g.restore();
+    const ch = chrono('servir vanuari-lait', () => B.servir('vanuari-lait', { seed: 3, sol: '#A1D4D5' }, ppm));
+    R.draw(g, ch, 112 * ppm, 118 * ppm);
+    const ci = chrono('servir citronnade', () => B.servir('citronnade', { seed: 2, sol: '#A1D4D5' }, ppm));
+    R.draw(g, ci, 60 * ppm, 262 * ppm);
+    figure(d, c, 'chocolat Vanuari Lait 39 % servi, citronnade, assiette bleue sur le chemin de lin');
+
+    // la table orange du 14 septembre : set en rotin, assiettes roses, thé et théière
+    const W2 = 460, H2 = 320;
+    const tb2 = chrono('table orange', () => V.table({ bois: 'orange', w: W2, h: H2, seed: 12 }, ppm));
+    const [c2, g2] = toile(W2, H2);
+    g2.drawImage(tb2, 0, 0);
+    R.draw(g2, chrono('rotin', () => V.rotin({ seed: 2 }, ppm)), 200 * ppm, 150 * ppm);
+    R.draw(g2, V.assiette({ motif: 'rose', seed: 14 }, ppm), 128 * ppm, 128 * ppm);
+    R.draw(g2, V.assiette({ motif: 'brun', seed: 15 }, ppm), 282 * ppm, 150 * ppm);
+    R.draw(g2, chrono('théière', () => V.theiere({ seed: 3, sol: '#E8743B' }, ppm)), 400 * ppm, 70 * ppm);
+    R.draw(g2, B.servir('blue-of-london', { seed: 5, sol: '#E8743B' }, ppm), 395 * ppm, 245 * ppm);
+    figure(d, c2, 'table orange : set en rotin, assiettes à décor rose et brun, théière fleurie, Blue of London');
+  }
+
+  /* ---------- 2. les douze crus ---------- */
+  if (on('crus')) {
+    const d = section('Les douze grands crus — même tasse fleurie, la couleur suit le cacao et le lait');
+    B.liste.filter((b) => b.famille === 'grands-crus').forEach((b, k) => {
+      const sp = chrono('cru ' + b.id, () => B.servir(b.id, { seed: 3 + k, sol: '#A1D4D5' }, ppm));
+      vignette(d, sp, b.nom, '#A1D4D5', [104, 104], [sp.inner.cx, sp.inner.cy + 2]);
+    });
+  }
+
+  /* ---------- 3. toutes les boissons servies ---------- */
+  if (on('servies')) {
+    const d = section('Toute la carte, servie (tasse, soucoupe et cuillère posée, ou verre)');
+    const ids = qs.get('ids') ? qs.get('ids').split(',') : B.liste.map((b) => b.id);
+    ids.forEach((id, k) => {
+      const sp = chrono('servir ' + id, () => B.servir(id, { seed: 1 + k, sol: '#A1D4D5' }, ppm));
+      const it = B.liste.find((b) => b.id === id);
+      vignette(d, sp, it ? it.nom : id, '#A1D4D5', [158, 158], [sp.inner.cx, sp.inner.cy + 16]);
+    });
+  }
+
+  /* ---------- 4. la vaisselle ---------- */
+  if (on('assiettes')) {
+    const d = section('Assiettes en faïence — décors imprimés « terre de fer » (bleu, rose, brun), filet doré, blanche');
+    [['bleu', '#A1D4D5'], ['rose', '#E8743B'], ['brun', '#B9CFBC'], ['filet', '#E2CC41'], ['blanche', '#A1D4D5']].forEach(([m, f], k) => {
+      const sp = chrono('assiette ' + m, () => V.assiette({ motif: m, seed: 11 + k, sol: f }, ppm));
+      vignette(d, sp, 'assiette ' + m, f, [214, 214]);
+    });
+  }
+  if (on('soucoupes')) {
+    const d = section('Soucoupes');
+    [['bleu', true], ['rose', false], ['brun', false], ['filet', false], ['blanche', true]].forEach(([m, ch], k) => {
+      const sp = chrono('soucoupe ' + m, () => V.soucoupe({ motif: m, seed: 21 + k, chantourne: ch }, ppm));
+      vignette(d, sp, 'soucoupe ' + m + (ch ? ' chantournée' : ''), '#A1D4D5', [152, 152]);
+    });
+  }
+  if (on('tasses')) {
+    const d = section('Tasses — vues de dessus, anse à droite, paroi extérieure devinée côté bas');
+    [['tasse', 'rose'], ['tasse', 'bleu'], ['tasse', 'brun'], ['tasse', 'filet'], ['bol', 'bleu'], ['expresso', 'blanche'], ['mug', 'filet']].forEach(([st, m], k) => {
+      const T = chrono('tasse ' + st + ' ' + m, () => V.tasse({ style: st, motif: m, seed: 31 + k }, ppm));
+      vignette(d, T.sprite, st + ' ' + m, '#A1D4D5', [st === 'bol' ? 136 : 130, st === 'mug' ? 128 : 116], [T.inner.cx + 8, T.inner.cy + 6]);
+    });
+  }
+  if (on('objets')) {
+    const d = section('Verres, théières, set en rotin');
+    ['gobelet', 'bocal'].forEach((st, k) => {
+      const G = chrono('verre ' + st, () => V.verre({ style: st, seed: 60 + k }, ppm));
+      vignette(d, G.sprite, 'verre ' + st + ' (vide)', '#E2CC41', [110, 124], [G.inner.cx, G.inner.cy + 8]);
+    });
+    const th = chrono('théière porcelaine', () => V.theiere({ seed: 3, motif: 'rose' }, ppm));
+    vignette(d, th, 'théière en porcelaine fleurie', '#A1D4D5', [250, 190], [th.ax, th.ay - 8]);
+    const th2 = chrono('théière fonte', () => V.theiere({ seed: 4, matiere: 'fonte' }, ppm));
+    vignette(d, th2, 'théière en fonte', '#E8743B', [250, 190], [th2.ax, th2.ay - 8]);
+    const ro = chrono('set en rotin', () => V.rotin({ seed: 2 }, ppm));
+    vignette(d, ro, 'set de table en rotin tressé', '#E8743B', [350, 350]);
+  }
+  if (on('cuilleres')) {
+    const d = section('Petites cuillères anciennes en argent (elles reflètent la couleur de la table)');
+    [['#A1D4D5', 1], ['#E2CC41', 2], ['#E8743B', 3], ['#B9CFBC', 4]].forEach(([f, sd]) => {
+      const sp = chrono('cuillère ' + sd, () => V.cuillere({ seed: sd, sol: f }, ppm));
+      vignette(d, sp, 'cuillère ' + sd, f, [40, 136]);
+    });
+  }
+  if (on('tables')) {
+    const d = section('Les tables peintes (et la nappe)');
+    [['menthe', 20], ['sauge', 21], ['jaune', 22], ['orange', 23]].forEach(([b, sd]) => {
+      const t = chrono('table ' + b, () => V.table({ bois: b, w: 150, h: 110, seed: sd }, ppm));
+      t.style.width = t.width / DPR + 'px';
+      figure(d, t, 'table ' + b);
+    });
+    const n = chrono('nappe 150×110', () => V.nappe({ w: 150, h: 110, seed: 24 }, ppm));
+    n.style.width = n.width / DPR + 'px';
+    figure(d, n, 'nappe de lin fleurie');
+  }
+
+  /* ---------- 5. mesures : une tasse servie, à froid puis en changeant de boisson ---------- */
+  if (on('mesures')) {
+    const out = [];
+    const mes = (nom, fn, n = 6) => {
+      let best = 1e9, first = 0;
+      for (let k = 0; k < n; k++) {
+        R.cache.clear();
+        const t0 = performance.now();
+        fn();
+        const dt = performance.now() - t0;
+        if (!k) first = dt;
+        best = Math.min(best, dt);
+      }
+      out.push(nom.padEnd(40) + ' 1er ' + first.toFixed(0).padStart(4) + ' ms   min ' + best.toFixed(0).padStart(4) + ' ms');
+    };
+    ['vanuari-lait', 'cappuccino', 'guimauve', 'montagne-bleue', 'espresso', 'citronnade'].forEach((id) => mes('servir ' + id + ' (tout recalculé)', () => B.servir(id, { seed: 2 }, ppm)));
+    B.servir('vanuari-lait', { seed: 2 }, ppm);
+    ['kewane', 'noir-infini', 'z-cafe', 'blanc-ivoire'].forEach((id) => {
+      let best = 1e9;
+      for (let k = 0; k < 5; k++) {
+        [...R.cache.keys()].filter((q) => q.includes('|' + id + '|')).forEach((q) => R.cache.delete(q));
+        const t0 = performance.now();
+        B.servir(id, { seed: 2 }, ppm);
+        best = Math.min(best, performance.now() - t0);
+      }
+      out.push(('changer de cru → ' + id + ' (vaisselle en cache)').padEnd(40) + '          min ' + best.toFixed(0).padStart(4) + ' ms');
+    });
+    window.LAB_MESURES = out.join('\n');
+    const d = section('Mesures (ppm ' + ppm.toFixed(2) + ')');
+    const p = document.createElement('pre');
+    p.textContent = window.LAB_MESURES;
+    p.style.margin = '0 4px';
+    d.appendChild(p);
+  }
+
+  document.getElementById('temps').textContent = temps.length ? 'Temps de calcul (premier appel' + (BENCH ? ', puis minimum de ' + BENCH + ' recalculs à froid' : '') + ') :\n' +
+    temps.map(([n, t, det, b]) => n.padEnd(34) + t.toFixed(1).padStart(8) + ' ms' + (BENCH ? '  min ' + b.toFixed(1).padStart(6) + ' ms' : '') + (det || '')).join('\n') : '';
+  window.LAB_TEMPS = temps;
+  window.LAB_DONE = true;
+})();
+</script>
+</body>
+</html>

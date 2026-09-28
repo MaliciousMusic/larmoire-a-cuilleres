@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labo · les gâteaux</title>
+<style>
+  html, body { margin: 0; background: #9ccfcd; font-family: Poppins, system-ui, sans-serif; color: #2a3b3a; }
+  #table { display: block; }
+  #bilan { font-size: 12px; padding: 6px 12px 10px; }
+</style>
+</head>
+<body>
+<canvas id="table"></canvas>
+<div id="bilan"></div>
+<script src="../js/ac-core.js"></script>
+<script src="../js/ac-rendu.js"></script>
+<script src="../js/ac-vaisselle.js" onerror="window.__sansVaisselle = true"></script>
+<script src="../js/ac-gateaux.js"></script>
+<script>
+/* Page de contrôle : chaque gâteau, deux graines, posé sur une assiette, sur une table en bois menthe.
+   Par défaut : graines 7 et 2, angle −0,35 rad (la graine 7 et l'angle de la table du goûter, ac-table.js).
+   Paramètres : ?id=cookie (un seul) · ?seeds=1,2 · ?zoom=2 (échelle ×2) · ?cols=3 · ?angle=0.3 (rad)
+   ?miettes=0 (sans miettes) · ?nu=1 (sans assiette : le gâteau seul sur la table) · ?profil=1 (temps par étape) */
+(function () {
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const R = AC.R, G = AC.Gateaux;
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const zoom = +(q.get('zoom') || 1);
+  const pxmm = 1.9 * zoom; // px CSS par mm : ≈ 180 px pour une part de 95 mm, comme sur le site
+  const ppm = pxmm * dpr;
+  const ids = q.get('id') ? q.get('id').split(',') : G.liste.map((g) => g.id);
+  const seeds = (q.get('seeds') || '7,2').split(',').map(Number);
+  const angle = q.has('angle') ? +q.get('angle') : -0.35;
+  const nu = q.get('nu') === '1';
+  const avecMiettes = q.get('miettes') !== '0';
+  const cols = +(q.get('cols') || (zoom > 1.5 ? 2 : 3));
+  const cellW = nu ? 150 : 222, cellH = nu ? 150 : 236; // mm
+  const cells = [];
+  for (const id of ids) for (const s of seeds) cells.push({ id, s });
+  const rows = Math.ceil(cells.length / cols);
+  const Wmm = cols * cellW + 10, Hmm = rows * cellH + 16;
+  const cv = document.getElementById('table');
+  cv.width = Math.round(Wmm * ppm); cv.height = Math.round(Hmm * ppm);
+  cv.style.width = Wmm * pxmm + 'px'; cv.style.height = Hmm * pxmm + 'px';
+  const ctx = cv.getContext('2d');
+
+  /* ---- la table : planches de bois peintes en menthe ---- */
+  (function bois() {
+    const k = ppm / 2; // calculée à mi-résolution puis agrandie (c'est un fond)
+    const W = Math.ceil(Wmm * k), H = Math.ceil(Hmm * k);
+    const n = AC.noise2(7), n2 = AC.noise2(8);
+    const img = new ImageData(W, H), d = img.data;
+    const planche = 118; // mm
+    for (let j = 0; j < H; j++) {
+      const y = j / k;
+      for (let i = 0; i < W; i++) {
+        const x = i / k;
+        const p = Math.floor(x / planche), xp = x - p * planche;
+        const fil = n(p * 13.1 + x * 0.004, y * 0.012 + p * 7) * 0.6 + n2(x * 0.09, y * 0.0045 + p) * 0.4;
+        let v = 1 + 0.035 * fil + 0.02 * n(x * 0.5, y * 0.05);
+        const joint = Math.min(xp, planche - xp);
+        if (joint < 1.2) v *= 0.55 + 0.45 * (joint / 1.2);
+        else if (joint < 3) v *= 0.97 + 0.03 * ((joint - 1.2) / 1.8);
+        const o = (j * W + i) * 4;
+        d[o] = 159 * v; d[o + 1] = 208 * v; d[o + 2] = 206 * v; d[o + 3] = 255;
+      }
+    }
+    const c = R.canvas(W, H);
+    c.getContext('2d').putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(c, 0, 0, cv.width, cv.height);
+  })();
+
+  /* ---- l'assiette : celle de la vaisselle si elle existe, sinon un disque blanc cassé ---- */
+  function assietteBlanche(k) {
+    const D = 236, W = Math.ceil(D * k), H = W, c = W / 2, N = W * H;
+    const hgt = new Float32Array(N), al = new Float32Array(N), alb = new Float32Array(N * 3);
+    const creme = R.lin('#f2ede3'), liseré = R.lin('#c9b48a');
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const x = (i + 0.5 - c) / k, y = (j + 0.5 - c) / k, r = Math.hypot(x, y);
+      if (r > 100.6) continue;
+      const p = j * W + i;
+      al[p] = Math.min(1, Math.max(0, 0.5 - (r - 100) * k));
+      let h = 0;
+      if (r > 64) h += 4.2 * Math.min(1, (r - 64) / 16) ** 1.6; // l'aile remonte
+      if (r > 96) h += 0.8 * Math.sin(Math.min(1, (r - 96) / 4) * Math.PI / 2); // le marli
+      h -= r > 99 ? (r - 99) * 1.2 : 0;
+      hgt[p] = h;
+      const col = r > 97.2 && r < 98.4 ? liseré : creme;
+      alb[p * 3] = col[0]; alb[p * 3 + 1] = col[1]; alb[p * 3 + 2] = col[2];
+    }
+    const Nn = R.normals(hgt, W, H, k);
+    const img = R.shade({ w: W, h: H, alb, alpha: al, N: Nn, spec: 0.45, gloss: 70, wrap: 0.35 });
+    const canvas = R.canvas(W, H);
+    canvas.getContext('2d').putImageData(img, 0, 0);
+    const shadow = R.castShadow(al, W, H, k, { height: 6, soft: 1.4, opacity: 0.3, contact: 0.35 });
+    return { canvas, shadow, w: W / k, h: H / k, ax: c / k, ay: c / k };
+  }
+  const V = AC.Vaisselle;
+  function assiette(n) {
+    const motif = n % 2 ? 'rose' : 'bleu'; // une assiette ancienne bleue ou rose, comme au salon
+    if (V && typeof V.assiette === 'function') {
+      try {
+        const sp = V.assiette({ motif, d: 200, chantourne: true, seed: 12 + (n % 4) }, ppm);
+        if (sp && sp.canvas) return sp;
+      } catch (e) { console.warn('vaisselle :', e.message); }
+    }
+    return blanche || (blanche = assietteBlanche(ppm));
+  }
+  let blanche = null;
+
+  /* ---- la planche ---- */
+  if (q.get('profil')) G.profil = {};
+  const mesures = (window.__mesures = []);
+  const t00 = performance.now();
+  let total = 0;
+  ctx.textBaseline = 'top';
+  cells.forEach((cell, n) => {
+    const cx = (5 + (n % cols) * cellW + cellW / 2) * ppm;
+    const cy = (8 + Math.floor(n / cols) * cellH + (nu ? cellH / 2 : 112)) * ppm;
+    if (!nu) R.draw(ctx, assiette(n), Math.round(cx), Math.round(cy));
+    const t0 = performance.now();
+    const sp = G.rendre(cell.id, { seed: cell.s, angle }, ppm);
+    const ms = performance.now() - t0;
+    let msM = 0;
+    if (avecMiettes) {
+      const t1 = performance.now();
+      const mi = G.miette(cell.id, { seed: cell.s, angle }, ppm);
+      msM = performance.now() - t1;
+      R.draw(ctx, mi, Math.round(cx), Math.round(cy));
+    }
+    R.draw(ctx, sp, Math.round(cx), Math.round(cy));
+    total += ms;
+    mesures.push({ id: cell.id, seed: cell.s, ppm: +ppm.toFixed(2), ms: Math.round(ms), px: sp.canvas.width + '×' + sp.canvas.height + (avecMiettes ? ` · miettes ${Math.round(msM)} ms` : '') });
+    const g = G.liste.find((e) => e.id === cell.id);
+    ctx.fillStyle = 'rgba(30,45,44,.85)';
+    ctx.font = `${Math.round(3.6 * ppm)}px Poppins, system-ui, sans-serif`;
+    const ty = cy + (nu ? 62 : 104) * ppm;
+    ctx.fillText(`${g.nom} — graine ${cell.s} — ${Math.round(ms)} ms`, cx - (cellW / 2 - 8) * ppm, ty);
+  });
+  document.getElementById('bilan').textContent =
+    `${cells.length} rendus · ppm ${ppm.toFixed(2)} · total gâteaux ${Math.round(total)} ms · page ${Math.round(performance.now() - t00)} ms` +
+    (V ? ' · assiettes : ac-vaisselle.js' : ' · assiettes : disque blanc cassé (ac-vaisselle.js absent)');
+  if (G.profil) console.log('profil (ms) : ' + Object.entries(G.profil).map(([k, v]) => k + ' ' + v.toFixed(1)).join(' · '));
+  window.__pret = Promise.resolve(true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Labo · temps à froid des gâteaux</title>
+</head>
+<body>
+<pre id="out"></pre>
+<script src="../../js/ac-core.js"></script>
+<script src="../../js/ac-rendu.js"></script>
+<script src="../../js/ac-gateaux.js"></script>
+<script>
+/* Temps de calcul d'UN gâteau dans une page neuve (code encore froid), avec ou sans préchauffage.
+   ?id=cookie&ppm=3.8&chauffe=1 — utilisé par gateaux-capture.mjs (window.__mesures). */
+(function () {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id') || 'cookie', ppm = +(q.get('ppm') || 3.8), chauffe = q.get('chauffe') === '1';
+  const t0 = performance.now();
+  if (chauffe && AC.Gateaux.prechauffer) AC.Gateaux.prechauffer(id);
+  const t1 = performance.now();
+  const sp = AC.Gateaux.rendre(id, { seed: 7, angle: -0.35 }, ppm);
+  const t2 = performance.now();
+  window.__mesures = [{ id, seed: 7, ppm, ms: Math.round(t2 - t0), px: `préchauffage ${Math.round(t1 - t0)} ms + rendu ${Math.round(t2 - t1)} ms · ${sp.canvas.width}×${sp.canvas.height}` }];
+  document.getElementById('out').textContent = JSON.stringify(window.__mesures, null, 1);
+  window.__pret = Promise.resolve(true);
+})();
+</script>
+</body>
+</html>

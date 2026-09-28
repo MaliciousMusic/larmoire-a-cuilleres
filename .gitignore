@@ -1,0 +1,17 @@
+# Jamais publiés : le dossier d'enquête (contenus aspirés, photos, données) et les fichiers de travail
+osint/
+tools/*/_work/
+tools/*/source/
+tools/*/_cache/
+
+# Local
+.claude/
+__pycache__/
+*.pyc
+node_modules/
+*.bak
+.DS_Store
+Thumbs.db
+
+# Captures de contrôle des moteurs de rendu (lourdes, se régénèrent : voir lab/ et tools/rendu/*.mjs)
+tools/rendu/*.png

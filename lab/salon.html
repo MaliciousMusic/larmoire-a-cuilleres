@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Labo · le salon</title>
+<link rel="stylesheet" href="../css/fonts.css">
+<style>
+  html, body { margin: 0; background: #F7F0E4; font-family: Poppins, system-ui, sans-serif; color: #3B2723; }
+  .wrap { max-width: 400px; margin: 0 auto; }
+  /* le même cadre que .scene-salon de l'appli (fondu en bas avec ?fondu) */
+  #salon { position: relative; width: 100%; max-width: 400px; aspect-ratio: 400 / 520; max-height: 520px; overflow: hidden; background: #E9DFCC; }
+  #salon > svg { width: 100%; height: 100%; display: block; }
+  .fondu #salon::after { content: ''; position: absolute; inset: auto 0 0 0; height: 36px; background: linear-gradient(transparent, #F7F0E4); pointer-events: none; }
+  .large .wrap { max-width: 600px; }
+  .large #salon { max-width: 600px; max-height: 640px; }
+  .ctl { padding: 10px; font-size: 13px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; padding: 6px 10px; border-radius: 99px; border: 1px solid #3B2723; background: #fff; color: inherit; cursor: pointer; }
+  #info { font: 11px/1.45 ui-monospace, Menlo, monospace; padding: 0 12px 12px; opacity: .75; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="salon"></div>
+  <div class="ctl">
+    <button id="b-play">Rejouer</button>
+    <button data-t="tasse">La tasse</button>
+    <button data-t="armoire">L'armoire</button>
+    <button data-t="livre">Le livre</button>
+    <button data-t="chaise">La chaise</button>
+    <button data-t="chaise2">Le coussin</button>
+    <button data-t="theiere">La théière</button>
+    <button data-t="lampe">La suspension</button>
+  </div>
+  <div id="info"></div>
+</div>
+<script src="../js/ac-core.js"></script>
+<script src="../js/ac-salon.js"></script>
+<script>
+  /* ?fige : état final sans animation · ?t=1200 : la composition figée à 1,2 s ·
+     ?fondu : le fondu du bas de l'appli · ?large : l'hôte le plus large de l'appli (600 × 640) ·
+     ?vb=x,y,l,h : zoom sur une région (contrôle des détails) ·
+     ?touch=armoire&tt=700 : une interaction figée · ?page=1.4 : la page qui tourne, figée ·
+     ?idle=3000 : laisser vivre la scène avant de signaler LAB_DONE */
+  (async () => {
+    const q = new URLSearchParams(location.search);
+    if (q.has('fondu')) document.documentElement.classList.add('fondu');
+    if (q.has('large')) document.documentElement.classList.add('large');
+    const t0 = performance.now();
+    const s = await AC.Salon.create(document.getElementById('salon'), {});
+    const tBuild = performance.now() - t0;
+    window.SALON = s;
+    if (q.has('vb')) s.svg.setAttribute('viewBox', q.get('vb').split(',').join(' ')); // zoom de contrôle
+    const info = document.getElementById('info');
+    const n = s.svg.querySelectorAll('*').length;
+    const nDefs = s.svg.querySelector('defs').querySelectorAll('*').length;
+    info.textContent = `${n} éléments SVG (dont ${nDefs} dans <defs>) · construit en ${tBuild.toFixed(0)} ms`;
+    if (q.has('touch')) {
+      // une interaction figée à l'instant ?tt (ms)
+      s.idle(true);
+      s.touch(q.get('touch'));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const t = +(q.get('tt') || 500);
+      document.getAnimations().forEach((a) => { a.pause(); a.currentTime = t; });
+      window.LAB_DONE = true;
+    } else if (q.has('page')) {
+      // la page du livre à mi-course (angle en radians)
+      s.idle(true);
+      const tr = s.parts.trunk;
+      tr.page.setAttribute('display', 'inline');
+      tr.page.setAttribute('d', tr.pageAt(+q.get('page')));
+      window.LAB_DONE = true;
+    } else if (q.has('fige')) { s.idle && s.idle(true); window.LAB_DONE = true; }
+    else if (q.has('t')) {
+      const p = s.play();
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const t = +q.get('t');
+      document.getAnimations().forEach((a) => { a.pause(); a.currentTime = t; });
+      window.LAB_DONE = true;
+      void p;
+    } else {
+      await s.play();
+      s.idle();
+      if (q.has('idle')) await new Promise((r) => setTimeout(r, +q.get('idle'))); // laisser vivre avant la capture
+      window.LAB_DONE = true;
+    }
+    document.getElementById('b-play').onclick = () => s.play();
+    document.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => s.touch && s.touch(b.dataset.t); });
+  })();
+</script>
+</body>
+</html>

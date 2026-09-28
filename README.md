@@ -1,0 +1,107 @@
+# L'Armoire à Cuillères — maquette du site-appli
+
+Le site du bar à chocolat de la rue des Chaussetiers, pensé comme une petite appli de téléphone : un écran, des onglets en bas, pas de long défilement.
+HTML/CSS/JS sans framework ni build : ça s'ouvre tel quel et s'héberge n'importe où.
+
+Direction artistique : **un salon de thé d'antan dans une toute petite boutique**. Tout part de leur identité réelle :
+- **la devanture** (bois chocolat mouluré, enseigne peinte, corniche de branches séchées et de nichoirs, panneau « ICI ON… », enseigne drapeau anthracite aux cuillères, terrasse de chaises pliantes pastel) redessinée en SVG animé, comme celle du Café Laitue ;
+- **la typo du logo**, reconstruite en police à partir de leurs affiches de 2013 à 2019 (aucune police du commerce ne correspondait) ;
+- **les feuilles colorées** de leur identité 2013 (turquoise, prune, fuchsia, marine, aqua), aujourd'hui en vitrophanie, vectorisées depuis le fichier d'origine et posées en détail partout ;
+- **leurs dessins au trait** : la cuillère ciselée du logo, le râtelier de dix cuillères de l'enseigne drapeau, les tasses empilées ;
+- **le salon de thé** : chaises bistrot en bois courbé, table menthe, vaisselle ancienne dépareillée (faïence à fleurs bleues, fleurs brun-rose à liseré doré), lin, rotin.
+
+Couleurs : chocolat #3B2723 (la devanture), papier #F7F0E4, teal #2E767E (leur carte 2026), menthe #A1D4D5 (leurs tables), et les feuilles. Polices : Armoire Lettres (reconstruite), Playfair Display (le vinyle « HORAIRES » de la vitrine), Poppins (leur carte 2026). Toutes hébergées sur le site.
+
+## Lancer en local
+
+```bash
+python tools/dev-server.py
+```
+
+Puis http://localhost:5190 (serveur sans cache). Un double-clic sur `index.html` marche aussi.
+
+| Adresse | Effet |
+|---|---|
+| `?intro` | rejoue l'ouverture (elle ne passe qu'une fois par visite) · `?nointro` la saute (captures) |
+| `?soir` · `?jour` | force l'éclairage du soir ou du jour sur la devanture (sinon : l'heure de Paris et le coucher du soleil) |
+| `?ouvert` | montre la boutique ouverte quel que soit le jour (démo un lundi) |
+| `lab/facade.html` (`?fige`, `?nuit`, `?ferme`) | la devanture seule (rejouer, jour/soir, ouvert/fermé, un oiseau, toquer à la porte) |
+| `lab/marque.html` | le logo, la cuillère (tracé à la plume), le râtelier des dix cuillères, les tasses, les feuilles |
+| `lab/vaisselle.html` (`?s=scene,crus,servies,assiettes…`, `?bench=N`) | la vaisselle ancienne, la table, le lin, le rotin, les 46 boissons |
+| `lab/gateaux.html` (`?id=`, `?seeds=`, `?zoom=`) | les gâteaux sur leurs assiettes |
+| `lab/salon.html` (`?fige`, `?touch=armoire`) | l'intérieur du salon |
+
+## Ce qu'il y a dedans
+
+| Onglet | Contenu |
+|---|---|
+| **Ouverture** | Leur logo en filigrane, « Entrer » (le geste qui autorise le son) ou « Entrer sans le son ». La cuillère se dessine à la plume, les lettres éclosent une à une sur « Au clair de la lune » en boîte à musique, accord, la clochette de la porte tinte, et la devanture se construit. Son coupé : elle part toute seule. |
+| **Accueil** | Pas de barre du haut : tout est sur la devanture. La devanture vivante : les lettres de l'enseigne, les vitrines qui s'allument, les nichoirs qui tombent sur la corniche, l'enseigne drapeau qui se balance, les chaises et les fleurs qui arrivent, et **la porte qui s'entrouvre** à la fin : la lumière du salon passe par l'entrebâillement (on voit la chaise bistrot, le comptoir, le parquet), déborde en halo et s'étale sur les pavés, avec quelques poussières dorées ; de temps en temps un courant d'air la pousse. Au toucher, la clochette tinte, la porte s'ouvre en grand et on entre dans le salon (l'onglet Nous). La pancarte « OUVERT / FERMÉ » pend derrière la vitre de la porte et suit le vantail. Les horaires sont sur la vitrine de gauche, « HORAIRES » en lettres dorées, le jour même en doré : le reflet qui passe sur les vitres (et seulement sur les vitres) allume les lettres une à une, puis une étincelle ; on touche la vitrine : la caméra s'approche dans la scène, le vinyle se lit en grand avec l'état du jour en bas, et un toucher ramène dans la rue (« Les horaires », sous le logo, fait de même ; plus de feuille par-dessus). Une mésange sort d'un nichoir de temps en temps, va se poser et chante. Le soir (heure de Paris), la rue bleuit, le réverbère s'allume et la porte éclaire le trottoir ; fermé, les vitrines s'assombrissent (la porte reste éclairée : on peut toujours entrer voir le salon ; les vinyles collés sur les vitres restent nets). On touche aussi : le panneau « ICI » (les mots s'allument), l'ardoise, les nichoirs, l'enseigne, la tasse de la terrasse. Au pied de la vitrine de droite : des tulipes dans un seau en zinc, des marguerites dans un panier, un buis en boule. Dessous : leur logo avec la cuillère (la police des lettres peintes reste sur l'enseigne), les accès rapides, la carte du jour, l'ardoise des pâtisseries (chaque ligne se sert sur la table de la carte), le panneau « ICI ON… » qui s'allume mot à mot, le nuancier des douze crus. |
+| **La carte** | La table du goûter vue de dessus, comme leurs photos : bois peint menthe, chemin de lin, set en rotin, assiette ancienne, tasse sur sa soucoupe, vapeur. Le nuancier des **douze grands crus** (du Blanc Ivoire 33 % au Noir Infini 99 %) : on choisit, la tasse se remplit, la fiche donne les notes. Toute la carte 2026, avec leurs descriptions et leurs prix ; chaque ligne se sert sur la table (gâteau sur l'assiette, boisson dans son contenant). |
+| **Brunch** | L'affiche du dimanche (23 €, dès 11h30), la formule, le buffet à volonté, et la réservation : dimanche, heure, couverts, prénom, un mot → le SMS est prêt, il part de l'appli SMS du client (ou « Appeler »). |
+| **Fidélité** | Un râtelier à cuillères en bois : à chaque passage l'équipe y accroche une de leurs dix cuillères anciennes, avec son code à 4 chiffres (même système que Café Laitue et Kookies : 5 essais puis une minute de pause, 5 cuillères au plus par passage). Dix cuillères = un chocolat grand cru offert, validé par le même code. Verso : le QR du numéro de carte. |
+| **Nous** | L'histoire, les producteurs, la pile de leurs posts Instagram (on jette celle du dessus), la note Google, l'adresse, les horaires, les contacts, la FAQ ; en bas, l'interrupteur « Les petits bruits de la boutique » (le son, qui n'a plus sa place dans une barre du haut). |
+
+```
+index.html              tout le contenu (lisible par Google et les IA sans JS) + JSON-LD + icônes au trait (sprite SVG)
+css/armoire.css         l'identité : papier, bois chocolat, teal, menthe, ardoise, panneau ICI, vitre des horaires
+css/fonts.css           polices hébergées (généré par tools/fetch-fonts.py)
+js/ac-core.js           hasard seedé, bruit, maths, couleurs, SVG, stockage, sons WebAudio (clochette, boîte à musique, porcelaine, mésange…)
+js/ac-data.js           LA source : la boutique, les horaires, la carte, l'ardoise, le brunch, la FAQ, les producteurs
+js/ac-brand.js          le logo, la cuillère, les dix cuillères, les tasses et les feuilles, vectorisés (tools/vector/)
+js/ac-facade.js         la devanture (SVG dessiné en JS)
+js/ac-salon.js          l'intérieur du salon (SVG dessiné en JS)
+js/ac-rendu.js          la lumière commune des objets de la table (calcul pixel par pixel)
+js/ac-vaisselle.js      vaisselle ancienne, table, lin, rotin, et toutes les boissons vues de dessus
+js/ac-gateaux.js        les gâteaux maison vus de dessus
+js/ac-table.js          la table du goûter : composition, service, vapeur
+js/ac-carte.js          le nuancier des crus, les rubriques, le service
+js/ac-splash.js         l'ouverture, le logo de la barre du haut
+js/ac-brunch.js         la demande de réservation par SMS
+js/ac-fidelite.js       le râtelier à cuillères, le code équipe, le QR
+js/ac-nous.js           l'accueil (ardoise, panneau ICI), la pile Instagram, les bouquets de feuilles
+js/ac-app.js            onglets, feuilles, son, Ouvert/Fermé à l'heure de Paris (pancarte de la porte, vitrine des horaires)
+tools/build-carte.mjs   carte HTML statique + FAQ + JSON-LD + llms.txt, depuis ac-data.js
+tools/font/             reconstruction de la police du logo depuis leurs affiches
+tools/vector/           vectorisation du logo, des cuillères, des tasses et des feuilles
+tools/render-assets.mjs icônes d'appli et image de partage (Chrome sans tête, serveur local lancé)
+tools/capture.mjs       capture d'écran d'une page locale (contrôles visuels)
+tools/rendu/            outils de mesure et de capture des moteurs de rendu (vaisselle, gâteaux)
+tools/set-pin.mjs       changer le code équipe
+tools/set-domain.mjs    mettre le vrai domaine partout
+tools/bump.mjs          estampiller CSS et JS avant chaque publication (cache de GitHub Pages)
+osint/                  le dossier d'enquête (non publié) : osint/00-SYNTHESE.md
+```
+
+Après une modification de la carte, des horaires ou de la FAQ : `node tools/build-carte.mjs`.
+Icônes et image de partage (serveur local lancé) : `node tools/render-assets.mjs`.
+Police du logo : `tools/font/` (`extract.py`, `build.py`, `specimen.py`) ; éléments de marque : `python tools/vector/build_all.py`.
+
+**Ce qui est dessiné, et comment.** La devanture et le salon sont des SVG dessinés en JavaScript. La table de la carte est calculée pixel par pixel dans le navigateur, avec une lumière commune (`js/ac-rendu.js`, une fenêtre en haut à gauche) : cartes de hauteur, matières, reflets, ombres portées. Vaisselle dépareillée à décors « terre de fer » générés (fleurs bleues, brun-rose à liseré doré), 46 boissons (les 12 crus dans la même tasse fleurie, latte art, glaçons), 9 gâteaux. Tout est déterministe (même graine, même image) et mis en cache ; la table se précalcule en temps mort.
+Le logo, la cuillère, le râtelier, les tasses et les feuilles sont **vectorisés depuis leurs fichiers** (98 % de concordance avec le logo, 99,99 % pour les feuilles) ; la police du logo est reconstruite depuis leurs affiches 2013-2019 (25 lettres vectorisées, les autres recomposées dans le même trait : `tools/font/README.md`).
+
+**Code équipe de la maquette : 1319** (13h → 19h). Pour le changer : `node tools/set-pin.mjs 4821`.
+
+## À confirmer avec la boutique
+
+- **Horaires** : quatre versions publiques. Google et la bio Instagram (sept. 2026) : mar.–sam. 13h–19h, dim. 11h–19h ; la vitrine et le site : 14h–18h30 (samedi 10h). La maquette suit Google.
+- **Le brunch** : leur site affiche encore « Dimanche 6 septembre (dernier brunch avant fermeture définitive) », alors qu'Instagram relance le brunch le 24 septembre avec une nouvelle formule (23 €, buffet à volonté). Heures de service (11h30 · 12h30 · 13h30 dans la maquette).
+- **Carte fidélité** : la règle (10 passages = un chocolat offert) est une proposition.
+- **L'histoire** : reprise de leur site (Mallo, la Pologne, le Canada, « douillet comme un duvet d'oiseau ») ; prénoms à citer (Mallo, Amina) ; « depuis 2013 ».
+- **Producteurs** : ceux de leur site (lait du GAEC de Montjeudi, farine du Moulin Gribory, café Chazal…) : toujours d'actualité ?
+- **Le logo** : vectorisé depuis leurs fichiers ; demander le fichier source et le nom de la police. Les fichiers des feuilles de la vitrophanie.
+- **Mentions légales** : TVA, directrice de publication, hébergeur de production.
+- **Photos Instagram** de la pile : les originaux HD et leur accord (certaines sont signées @agenceares).
+
+## Passer en production
+
+1. Hébergement statique (GitHub Pages, Netlify, Cloudflare Pages) sur **larmoireacuilleres.com** (le domaine sert aujourd'hui leur WordPress) ; `node tools/set-domain.mjs https://www.larmoireacuilleres.com` ; retirer le `noindex`.
+2. **L'ardoise du jour** : un petit back-office (ou un Google Sheet publié) pour que l'équipe change les gâteaux du jour sans toucher au code.
+3. **Réservations du brunch** : garder le SMS, ou un formulaire relié à un agenda (confirmation par SMS).
+4. **Carte fidélité infalsifiable** : les cartes côté serveur (Supabase par exemple), tamponnage par code équipe ou scan du QR.
+5. **Commandes de gâteaux entiers** (24 h à l'avance) : formulaire + paiement Stripe si souhaité.
+
+## SEO local et référencement par les IA
+
+En place : JSON-LD `CafeOrCoffeeShop` + `Bakery` (horaires, géo, carte complète en `Menu`), `FAQPage`, `WebSite` ; toute la carte en HTML statique ; `llms.txt` ; robots.txt ouvert aux robots IA ; géo-balises ; manifest.
+Hors du site, le plus rentable : harmoniser les horaires partout (Google, Instagram, vitrine, PagesJaunes, leur site actuel), mettre le lien du site dans la bio Instagram, Apple Business Connect et Bing Places.

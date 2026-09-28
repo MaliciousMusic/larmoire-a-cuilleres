@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Labo · la devanture</title>
+<link rel="stylesheet" href="../css/fonts.css">
+<style>
+  html, body { margin: 0; background: #F7F0E4; font-family: Poppins, system-ui, sans-serif; }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  #facade { width: 100%; aspect-ratio: 400 / 560; overflow: hidden; background: #d9d4c3; }
+  #facade svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .ctl { padding: 10px; font-size: 13px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button { font: inherit; padding: 6px 10px; border-radius: 99px; border: 1px solid #3B2723; background: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="facade"></div>
+  <div class="ctl">
+    <button id="b-play">Rejouer la construction</button>
+    <button id="b-nuit">Jour / soir</button>
+    <button id="b-ouvert">Ouvert / fermé</button>
+    <button id="b-oiseau">Un oiseau</button>
+    <button id="b-porte">Toquer à la porte</button>
+  </div>
+</div>
+<script src="../js/ac-core.js"></script>
+<script src="../js/ac-data.js"></script>
+<script src="../js/ac-brand.js"></script>
+<script src="../js/ac-facade.js"></script>
+<script>
+  (async () => {
+    const q = new URLSearchParams(location.search);
+    const f = await AC.Facade.create(document.getElementById('facade'), {});
+    let nuit = q.has('nuit'), ouvert = !q.has('ferme');
+    f.setStatus({ ouvert, texte: ouvert ? 'Ouvert' : 'Fermé' });
+    f.setNight(nuit);
+    if (!q.has('fige')) { await f.play(); f.idle(); } else f.idle(true);
+    document.getElementById('b-play').onclick = () => f.play();
+    document.getElementById('b-nuit').onclick = () => { nuit = !nuit; f.setNight(nuit); };
+    document.getElementById('b-ouvert').onclick = () => { ouvert = !ouvert; f.setStatus({ ouvert }); };
+    document.getElementById('b-oiseau').onclick = () => f.bird && f.bird();
+    document.getElementById('b-porte').onclick = async () => { await f.knock(); setTimeout(() => f.closeDoor(), 1200); };
+    window.F = f;
+  })();
+</script>
+</body>
+</html>

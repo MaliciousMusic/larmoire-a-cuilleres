@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../css/fonts.css">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #F7F0E4; }
+  #og { position: relative; width: 1200px; height: 630px; display: flex; }
+  #gauche { width: 560px; height: 630px; overflow: hidden; position: relative; }
+  #gauche svg { position: absolute; left: -20px; top: -150px; width: 600px; height: 840px; }
+  #droite { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; position: relative; }
+  #logo { width: 470px; color: #2E767E; }
+  #logo svg { width: 100%; height: auto; overflow: visible; }
+  p { margin: 0; text-align: center; color: #3B2723; }
+  .l1 { font-family: 'Playfair Display', serif; font-style: italic; font-size: 34px; color: #2E767E; }
+  .l2 { font-family: Poppins, sans-serif; font-size: 22px; font-weight: 500; }
+  #feuilles { position: absolute; right: -40px; bottom: -40px; width: 230px; height: 180px; }
+</style></head>
+<body><div id="og"><div id="gauche"></div><div id="droite"><div id="logo"></div><p class="l1">Bar à chocolat &amp; salon de thé</p><p class="l2">11 rue des Chaussetiers · Clermont-Ferrand</p><div id="feuilles"></div></div></div>
+<script src="../../js/ac-core.js"></script><script src="../../js/ac-data.js"></script><script src="../../js/ac-brand.js"></script>
+<script src="../../js/ac-nous.js"></script><script src="../../js/ac-splash.js"></script><script src="../../js/ac-facade.js"></script>
+<script>
+(async () => {
+  await document.fonts.ready;
+  const f = await AC.Facade.create(document.getElementById('gauche'), {});
+  f.setStatus({ ouvert: true }); f.setNight(false); f.idle(true);
+  const { svg } = AC.logoSVG({ couleur: '#2E767E' });
+  document.getElementById('logo').appendChild(svg);
+  AC.bouquet(document.getElementById('feuilles'), [['aqua', 120, 200, 150, -40], ['turquoise', 150, 200, 160, -10], ['prune', 180, 200, 170, 18], ['fuchsia', 200, 200, 140, 40], ['marine', 225, 200, 100, 64]], { w: 260, h: 200, sway: false });
+  document.body.dataset.pret = '1';
+})();
+</script></body></html>
