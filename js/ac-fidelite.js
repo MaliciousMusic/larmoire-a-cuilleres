@@ -22,7 +22,7 @@
     // Pour le changer : node tools/set-pin.mjs 123456
     chiffres: 6,
     salt: 'armoire-a-cuilleres',
-    pinHash: '6a62898998823bfe8f65928f150eb53507b7effa1a2e946567b9ea84a70a9651',
+    pinHash: '5a15569ded40ca8183d7156fac4e2bf1097904a068508bd6dc206d45236bc3c5',
   };
 
   let card = load();

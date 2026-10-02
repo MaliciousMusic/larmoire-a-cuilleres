@@ -103,7 +103,7 @@ Le logo, la cuillère, le râtelier, les tasses et les feuilles sont **vectoris�
 - **La table de la carte se calcule dans un Worker** (`js/ac-atelier.js`, OffscreenCanvas → ImageBitmap) ; sans Worker (file://, vieux navigateur) ou s'il échoue, les mêmes moteurs se chargent dans la page. Au démarrage, seul l'accueil ; le salon, la comptine, la tablée et le QR code se chargent à la demande (préchargés en temps mort).
 - Essayé puis écarté : précharger toutes les polices (la devanture se construisait alors dans la même tâche que le démarrage : plus lent, mesuré sur 5 passages) ; `content-visibility: auto` sur les sections sous le pli (le gain ne concerne que Chrome, et les marges ne fusionnent plus : 1 à 8 px de décalage).
 
-**Code équipe de la maquette : 631319** (63, le Puy-de-Dôme, puis 13h → 19h). Pour le changer : `node tools/set-pin.mjs 482157`.
+**Code équipe de la maquette : 000000** (facile à essayer ; à remplacer par un vrai code avant la mise en ligne). Pour le changer : `node tools/set-pin.mjs 482157`.
 
 **L'icône d'appli** (écran d'accueil, onglet du navigateur) : quatre de leurs cuillères anciennes, celles du râtelier (la ciselée ajourée, la nouée, la toute simple, la torsadée à rosace), côte à côte et accrochées à la même hauteur, au trait noir sur fond blanc ; dans l'onglet du navigateur, leurs silhouettes pleines (le trait fin y disparaît). `tools/render/icone.html` (le choix des cuillères : `CHOIX`), rendu par `node tools/render-assets.mjs icones` (serveur local lancé). Un raccourci déjà posé sur un écran d'accueil garde l'ancienne icône : iOS la copie à l'ajout.
 
